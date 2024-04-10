@@ -34,9 +34,9 @@ pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
         y_vec.push(y);
         z_vec.push(z);
     }
-    let mut m_vec: Vec<f64> = Vec::with_capacity(nb_atoms.try_into().unwrap());
+    let mut m_vec: Vec<f64> = vec![1.0; nb_atoms.try_into().unwrap()];
     let mut vx_vec: Vec<f64> = Vec::with_capacity(nb_atoms.try_into().unwrap());
-    for _ in m_vec.clone().into_iter().enumerate() {
+    for _ in 0..m_vec.len() {
         m_vec.push(1.0);
         vx_vec.push(0.0);
     }

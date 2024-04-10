@@ -3,18 +3,32 @@ mod types;
 mod verlet;
 mod xyz;
 
+//use ndarray_rand::{RandomExt, rand_dist};
+use ndarray::Array;
+
+const nb_iterations: u32 = 1000000;
+const screen_interval: u32 = 1000;
+const file_interval: u32 = 1000;
+const timestep: f64 = 0.0001;
 
 fn main() {
-#![cfg_attr(feature = "dev", feature(plugin))]
-#![cfg_attr(feature = "dev", plugin(clippy))]
+    #![cfg_attr(feature = "dev", feature(plugin))]
+    #![cfg_attr(feature = "dev", plugin(clippy))]
 
-//#![deny(missing_docs,
-//        missing_debug_implementations, missing_copy_implementations,
-//        trivial_casts, trivial_numeric_casts,
-//        unsafe_code,
-//        unstable_features,
-//        unused_import_braces, unused_qualifications)]
+    //#![deny(missing_docs,
+    //        missing_debug_implementations, missing_copy_implementations,
+    //        trivial_casts, trivial_numeric_casts,
+    //        unsafe_code,
+    //        unstable_features,
+    //        unused_import_braces, unused_qualifications)]
     let mut atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
+
+    //   let a = Array::random((2, 5), Uniform::new(0., 10.));
+    //println!("{:8.4}", a);
+
+    // for i in 0..nb_iterations{
+    //     atoms.verlet_step1(i);
+    // }
 
     println!("x coordinates of the:\n 0th atom: {:?},\n 1st: {:?},\n 250th: {:?},\n 2200th: {:?},\n 3800th: {:?},\n last: {:?}", atoms.positions[[0,0]], atoms.positions[[0,1]], atoms.positions[[0,249]], atoms.positions[[0,2199]], atoms.positions[[0,3799]], atoms.positions[[0,atoms.positions.shape()[1]-1]]);
 

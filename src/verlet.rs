@@ -1,10 +1,11 @@
 use crate::atoms::Atoms;
+use ndarray::Axis;
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
         self.verlet_velo_update(timestep);
-        for i in 0..3 {
-            for j in 0..5 {
+        for i in 0..self.positions.len_of(Axis(0)) {
+            for j in 0..self.positions.len_of(Axis(1)) {
                 self.positions[[i, j]] += self.velocities[[i, j]] * timestep;
             }
         }

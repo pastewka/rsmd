@@ -22,9 +22,16 @@ impl Atoms {
         }
     }
 
-    pub fn push_vec(
+    pub fn push_pos_vec(&mut self, x_vec: Vec<f64>, y_vec: Vec<f64>, z_vec: Vec<f64>) {
+        for i in 0..x_vec.len() {
+            self.positions[[0, i]] = x_vec[i];
+            self.positions[[1, i]] = y_vec[i];
+            self.positions[[2, i]] = z_vec[i];
+        }
+    }
+
+    pub fn push_pos_velo_vec(
         &mut self,
-        m_vec: Vec<f64>,
         x_vec: Vec<f64>,
         y_vec: Vec<f64>,
         z_vec: Vec<f64>,
@@ -32,14 +39,17 @@ impl Atoms {
         vy_vec: Vec<f64>,
         vz_vec: Vec<f64>,
     ) {
-        self.masses = Array1::from_shape_vec(m_vec.len(), m_vec).unwrap();
-        for i in 0..x_vec.len() {
-            self.positions[[0, i]] = x_vec[i];
-            self.positions[[1, i]] = y_vec[i];
-            self.positions[[2, i]] = z_vec[i];
+        let nb_atoms = &x_vec.len();
+        Self::print_type_of(nb_atoms);
+        self.push_pos_vec(x_vec, y_vec, z_vec);
+        for i in 0..*nb_atoms as usize {
+            self.velocities[[0, i]] = vx_vec[i];
+            self.velocities[[1, i]] = vy_vec[i];
+            self.velocities[[2, i]] = vz_vec[i];
         }
     }
+
     fn print_type_of<T>(_: &T) {
-        println!("{}", std::any::type_name::<T>())
+        println!("type printing: {}", std::any::type_name::<T>())
     }
 }

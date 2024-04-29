@@ -26,7 +26,7 @@ fn main() {
     let mut atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
     //let mut atoms = xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
 
-    let ekin :f64 = atoms.kinetic_energy();
+    let ekin: f64 = atoms.kinetic_energy();
     println!("kinetic energy: {:?}", ekin);
     // atoms.verlet_step1(timestep);
     // atoms.verlet_step2(timestep);
@@ -43,7 +43,7 @@ fn main() {
     //println!("x coordinates of the:\n 0th atom: {:?},\n 1st: {:?},\n 250th: {:?},\n 2200th: {:?},\n 3800th: {:?},\n last: {:?}", atoms.positions[[0,0]], atoms.positions[[0,1]], atoms.positions[[0,249]], atoms.positions[[0,2199]], atoms.positions[[0,3799]], atoms.positions[[0,atoms.positions.shape()[1]-1]]);
 
     for i in 0..atoms.positions.shape()[1] {
-    //    println!("atom i={}, x={:?}", &i, atoms.positions[[0, i]]);
-    //    println!("atom velo i={}, x={:?}", i, atoms.velocities[[0, i]]);
+        //    println!("atom i={}, x={:?}", &i, atoms.positions[[0, i]]);
+        //    println!("atom velo i={}, x={:?}", i, atoms.velocities[[0, i]]);
     }
 }

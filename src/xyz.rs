@@ -2,6 +2,7 @@ use crate::atoms::Atoms;
 use std::fs;
 use std::io;
 use std::io::prelude::*;
+use std::io::BufWriter;
 
 pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
     let file = fs::File::open(file_path)?;
@@ -37,6 +38,25 @@ pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
     atoms_arr.push_pos_vec(x_vec, y_vec, z_vec);
 
     Ok(atoms_arr)
+}
+
+pub fn write_xyz(file_path: String, atoms: Atoms) -> Result<Atoms, io::Error> {
+    let file = fs::File::create(file_path)?;
+    let mut file = BufWriter::new(&file);
+    let nb_atoms: usize = atoms.positions.shape()[1];
+    file.write(nb_atoms.to_string().as_bytes())?;
+    file.write("\n".to_string().as_bytes())?;
+
+    for i in 0..nb_atoms {
+        file.write("\nAu ".as_bytes())?;
+        for j in 0..atoms.positions.shape()[0] {
+            write!(&mut file, "{:10} ", atoms.positions[[j, i]])?;
+        }
+        for j in 0..atoms.velocities.shape()[0] {
+            write!(&mut file, "{:10} ", atoms.velocities[[j, i]])?;
+        }
+    }
+    return Ok(atoms);
 }
 
 pub fn read_xyz_with_velocities(file_path: String) -> Result<Atoms, io::Error> {
@@ -86,7 +106,11 @@ pub fn read_xyz_with_velocities(file_path: String) -> Result<Atoms, io::Error> {
 }
 #[cfg(test)]
 mod tests {
-    use crate::xyz;
+    use crate::{xyz, xyz::Atoms};
+    use ndarray::Array;
+    use ndarray_rand::{rand_distr::Uniform, RandomExt};
+    use std::fs;
+
     #[test]
     fn test_read_xyz() {
         let mut atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
@@ -164,5 +188,34 @@ mod tests {
     }
     fn get_type_of<T>(_: &T) -> &'static str {
         return std::any::type_name::<T>();
+    }
+
+    #[test]
+    fn test_write_read_xyz() {
+        let nb_atoms = 300;
+        let mut atoms = Atoms::new(usize::try_from(nb_atoms).unwrap());
+
+        atoms.forces = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
+        atoms.positions = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
+        atoms.velocities = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
+        atoms.masses = Array::ones(nb_atoms);
+
+        let traj_path = "tmp_rand_traj_test_write_read_xyz.xyz".to_string();
+        xyz::write_xyz(traj_path.clone(), atoms.clone()).unwrap();
+        let atoms_read = xyz::read_xyz_with_velocities(traj_path.clone()).unwrap();
+
+        for i in 0..atoms.positions.shape()[1] {
+            for j in 0..atoms.positions.shape()[0] {
+                assert_eq!(
+                    atoms.positions[[j, i]].clone(),
+                    atoms_read.positions[[j, i]].clone()
+                );
+                assert_eq!(
+                    atoms.velocities[[j, i]].clone(),
+                    atoms_read.velocities[[j, i]].clone()
+                );
+            }
+        }
+        _ = fs::remove_file(traj_path);
     }
 }

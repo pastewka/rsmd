@@ -1,5 +1,6 @@
 use ndarray::{Array1, Array2};
 #[allow(warnings)]
+#[derive(Clone)]
 
 pub struct Atoms {
     pub masses: Array1<f64>,

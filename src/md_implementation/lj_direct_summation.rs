@@ -1,13 +1,12 @@
-use crate::{atoms::Atoms, lj_direct_summation};
+use crate::md_implementation::atoms::Atoms;
 use ndarray::{array, Array1, ArrayView1};
 use std::ops::{AddAssign, SubAssign};
 //use ndarray_linalg::norm;
 
 impl Atoms {
-
-//    fn l2_norm(x: ArrayView1<f64>) -> f64 {
-//    return x.dot(&x).sqrt();
-//}
+    //    fn l2_norm(x: ArrayView1<f64>) -> f64 {
+    //    return x.dot(&x).sqrt();
+    //}
 
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
         let epsilon: f64 = epsilon_opt.unwrap_or(1.0);
@@ -63,7 +62,7 @@ pub fn lj_pair(distance: f64, epsilon: f64, sigma: f64) -> (f64, f64) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{atoms::Atoms, xyz};
+    use crate::md_implementation::{atoms::Atoms, xyz};
     use googletest::{matchers::near, verify_that};
     use ndarray::Array;
     use ndarray_rand::{rand_distr::Uniform, RandomExt};

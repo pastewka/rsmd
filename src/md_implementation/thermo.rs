@@ -1,4 +1,4 @@
-use crate::atoms::Atoms;
+use crate::md_implementation::atoms::Atoms;
 use ndarray::{s, Array2};
 
 impl Atoms {
@@ -19,7 +19,7 @@ impl Atoms {
 #[cfg(test)]
 
 mod tests {
-    use crate::{atoms::Atoms, xyz};
+    use crate::md_implementation::{atoms::Atoms, xyz};
     use googletest::{matchers::near, verify_that};
     #[test]
     fn test_kinetic_energy() {

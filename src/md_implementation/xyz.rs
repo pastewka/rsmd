@@ -1,4 +1,4 @@
-use crate::atoms::Atoms;
+use super::atoms::Atoms;
 use std::fs;
 use std::io;
 use std::io::prelude::*;
@@ -106,7 +106,7 @@ pub fn read_xyz_with_velocities(file_path: String) -> Result<Atoms, io::Error> {
 }
 #[cfg(test)]
 mod tests {
-    use crate::{xyz, xyz::Atoms};
+    use crate::md_implementation::{xyz, xyz::Atoms};
     use ndarray::Array;
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
     use std::fs;

@@ -1,4 +1,4 @@
-use crate::atoms::Atoms;
+use crate::md_implementation::atoms::Atoms;
 use ndarray::Axis;
 
 impl Atoms {
@@ -37,7 +37,7 @@ impl Atoms {
 
 #[cfg(test)]
 mod tests {
-    use crate::{atoms::Atoms, xyz};
+    use crate::md_implementation::{atoms::Atoms, xyz};
     use googletest::{matchers::near, verify_that};
     use ndarray::s;
     use ndarray::{array, Array};

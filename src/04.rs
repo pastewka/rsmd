@@ -1,9 +1,9 @@
-mod atoms;
-mod lj_direct_summation;
-mod thermo;
-mod types;
-mod verlet;
-mod xyz;
+use rsmd::md_implementation;
+//mod lj_direct_summation;
+//mod thermo;
+//mod types;
+//mod verlet;
+//mod xyz;
 
 //use ndarray_rand::{RandomExt, rand_dist};
 use ndarray::Array;
@@ -23,7 +23,7 @@ fn main() {
     //        unsafe_code,
     //        unstable_features,
     //        unused_import_braces, unused_qualifications)]
-    let mut atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
+    let mut atoms = md_implementation::xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
     //let mut atoms = xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
 
     let ekin: f64 = atoms.kinetic_energy();

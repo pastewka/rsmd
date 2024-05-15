@@ -1,50 +1,25 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::{array, Array1, ArrayView1};
+use ndarray::Array1;
 use std::ops::{AddAssign, SubAssign};
-//use ndarray_linalg::norm;
 
 impl Atoms {
-    //    fn l2_norm(x: ArrayView1<f64>) -> f64 {
-    //    return x.dot(&x).sqrt();
-    //}
-
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
         let epsilon: f64 = epsilon_opt.unwrap_or(1.0);
         let sigma: f64 = sigma_opt.unwrap_or(1.0);
-        //if sigma == Null {sigma = Some(1.0);}
         let mut potential_energy = 0f64;
 
         for i in 0..self.positions.shape()[1] {
             for j in i + 1..self.positions.shape()[1] {
-                println!("i={}, j={}", i, j);
-                ////let distance_vector:Array1<f64> = &self.positions.column(i) - &self.positions.column(j);
                 let mut distance_vector: Array1<f64> = self.positions.column(i).to_owned();
-                //println!("distance_vector: {:?}",distance_vector);
-                //println!("self.pos[j={}]: {:?}",j, self.positions.column(j));
                 distance_vector.sub_assign(&self.positions.column(j));
-                //println!("distance_vector after minus: {:?}",distance_vector);
                 let distance: f64 = (&distance_vector * &distance_vector).sum().sqrt();
-                //println!("distance: {}",distance);
-                //println!("\n");
-
-                //let a:ndarray::Array1<f64> = array![-3.72601200000000032375169212173,
-                //    0.452300000000000146371803566581,
-                //    -0.905450000000000088107299234252];
-                //let dist: f64 = (&a * &a).sum().sqrt();
-                //println!("a: {:?}",a);
-                //println!("distance: {}",dist);
-                let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma); //(distance, epsilon, sigma);
+                let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
                 potential_energy += pair_energy;
-                //println!("epot: {}",&potential_energy);
                 let force_vector: Array1<f64> = pair_force * &distance_vector / distance;
-                //println!("force_vec:[{},{},{}]",force_vector[0],force_vector[1],force_vector[2]);
-                //atoms.forces.slice(s![[.., i]]) += &force_vector;
-                //atoms.forces.slice(s![[.., j]]) -= &force_vector;
                 self.forces.column_mut(i).add_assign(&force_vector);
                 self.forces.column_mut(j).sub_assign(&force_vector);
             }
         }
-        println!("epot: {}", &potential_energy);
         return potential_energy;
     }
 }
@@ -62,10 +37,12 @@ pub fn lj_pair(distance: f64, epsilon: f64, sigma: f64) -> (f64, f64) {
 
 #[cfg(test)]
 mod tests {
-    use crate::md_implementation::{atoms::Atoms, xyz};
+    use crate::md_implementation::atoms::Atoms;
     use googletest::{matchers::near, verify_that};
     use ndarray::Array;
+    use ndarray_rand::rand::SeedableRng;
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
+    use rand_isaac::isaac64::Isaac64Rng;
 
     #[test]
     fn test_lj_direct_summation() {
@@ -73,17 +50,19 @@ mod tests {
         const EPSILON: f64 = 0.7;
         const SIGMA: f64 = 0.3;
         const DELTA: f64 = 0.0001;
-        let mut atoms = Atoms::new(usize::try_from(NB_ATOMS).unwrap()); //xyz::read_xyz_with_velocities("lj5InclVelocity.xyz".to_string()).unwrap();
+        const SEED: u64 = 42;
+        let mut rng = Isaac64Rng::seed_from_u64(SEED);
+        let mut atoms = Atoms::new(usize::try_from(NB_ATOMS).unwrap());
 
-        atoms.positions = Array::random((3, NB_ATOMS), Uniform::new(-1.0, 1.0)); //TODO:uncomment
+        atoms.positions = Array::random_using((3, NB_ATOMS), Uniform::new(-1.0, 1.0), &mut rng);
+        println!("position[[0,0]]: {}", atoms.positions[[0, 0]]);
 
         //compute and store original energy of the indisturbed configuration
-        //atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));//TODO: make sigma and epsilon like
-
         let positions_original = atoms.positions.clone();
-        let velocities_original = atoms.velocities.clone();
+
         atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
         assert_eq!(atoms.positions, positions_original);
+
         let forces_original = atoms.forces.clone();
         println!("atoms.forces.shape(): {:?}", atoms.forces.shape());
         println!("atoms.forces (ORIGINAL ones): {:?}\n", atoms.forces);
@@ -128,7 +107,6 @@ mod tests {
                 );
                 //move atom back to original position
                 atoms.positions[[dim, j]] += DELTA;
-                //assert_eq!(atoms.positions,positions_original);
 
                 //finite-difference forces
                 let fd_force = -(eplus - eminus) / (2.0 * DELTA);
@@ -142,10 +120,11 @@ mod tests {
                         f64::abs(fd_force - forces_original[[dim, j]]) / &forces_original[[dim, j]],
                         near(0.0, 1e-5)
                     )
-                    .unwrap_or_else(|e| panic!("{}", e));
+                    .unwrap_or_else(|e| panic!("Comparison of (|fd_force - force_original| / force_original) to 0.0 failed:\n{}", e));
                 } else {
-                    verify_that!(fd_force, near(forces_original[[dim, j]], 1e-10))
-                        .unwrap_or_else(|e| panic!("{}", e));
+                    verify_that!(fd_force, near(forces_original[[dim, j]], 1e-10)).unwrap_or_else(
+                        |e| panic!("Comparison of fd_force to force_original failed:\n{}", e),
+                    );
                 }
             }
         }

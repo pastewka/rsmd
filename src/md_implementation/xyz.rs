@@ -27,9 +27,9 @@ pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
         line.clear();
         reader.read_line(&mut line)?;
         let s: Vec<&str> = line.split_whitespace().collect();
-        let mut x: f64 = s.get(1).unwrap().parse().unwrap();
-        let mut y: f64 = s.get(2).unwrap().parse().unwrap();
-        let mut z: f64 = s.get(3).unwrap().parse().unwrap();
+        let x: f64 = s.get(1).unwrap().parse().unwrap();
+        let y: f64 = s.get(2).unwrap().parse().unwrap();
+        let z: f64 = s.get(3).unwrap().parse().unwrap();
 
         x_vec.push(x);
         y_vec.push(y);
@@ -86,12 +86,12 @@ pub fn read_xyz_with_velocities(file_path: String) -> Result<Atoms, io::Error> {
         line.clear();
         reader.read_line(&mut line)?;
         let s: Vec<&str> = line.split_whitespace().collect();
-        let mut x: f64 = s.get(1).unwrap().parse().unwrap();
-        let mut y: f64 = s.get(2).unwrap().parse().unwrap();
-        let mut z: f64 = s.get(3).unwrap().parse().unwrap();
-        let mut vx: f64 = s.get(4).unwrap().parse().unwrap();
-        let mut vy: f64 = s.get(5).unwrap().parse().unwrap();
-        let mut vz: f64 = s.get(6).unwrap().parse().unwrap();
+        let x: f64 = s.get(1).unwrap().parse().unwrap();
+        let y: f64 = s.get(2).unwrap().parse().unwrap();
+        let z: f64 = s.get(3).unwrap().parse().unwrap();
+        let vx: f64 = s.get(4).unwrap().parse().unwrap();
+        let vy: f64 = s.get(5).unwrap().parse().unwrap();
+        let vz: f64 = s.get(6).unwrap().parse().unwrap();
 
         x_vec.push(x);
         y_vec.push(y);
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_read_xyz() {
-        let mut atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
+        let atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
 
         assert_eq!(3871, atoms.positions.shape()[1]);
         assert_eq!(3871, atoms.velocities.shape()[1]);
@@ -142,7 +142,7 @@ mod tests {
     }
     #[test]
     fn test_read_xyz_with_velocities() {
-        let mut atoms = xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
+        let atoms = xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
 
         assert_eq!(54, atoms.positions.shape()[1]);
         assert_eq!(54, atoms.velocities.shape()[1]);

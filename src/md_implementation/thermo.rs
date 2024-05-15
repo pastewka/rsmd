@@ -23,7 +23,7 @@ mod tests {
     use googletest::{matchers::near, verify_that};
     #[test]
     fn test_kinetic_energy() {
-        let mut atoms: Atoms =
+        let atoms: Atoms =
             xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
         assert_eq!(atoms.positions.nrows(), 3);
         assert_eq!(atoms.positions.ncols(), 54);

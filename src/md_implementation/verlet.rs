@@ -1,5 +1,4 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::Axis;
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
@@ -12,9 +11,6 @@ impl Atoms {
     }
 
     pub fn verlet_step2(&mut self, timestep: f64) {
-        //println!("\n\n------------------- Verlet2 ---------------\n\n");
-        //println!("forces: {:?}", &self.forces);
-        //println!("Masses untransposed: {:?}", &self.masses);
         self.verlet_velo_update(timestep);
     }
 
@@ -37,10 +33,9 @@ impl Atoms {
 
 #[cfg(test)]
 mod tests {
-    use crate::md_implementation::{atoms::Atoms, xyz};
+    use crate::md_implementation::atoms::Atoms;
     use googletest::{matchers::near, verify_that};
-    use ndarray::s;
-    use ndarray::{array, Array};
+    use ndarray::Array;
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
 
     #[test]
@@ -61,7 +56,6 @@ mod tests {
             if timestep >= 1e-3 {
                 break;
             }
-            let init_positions = atoms.positions.clone();
             let init_velocities = atoms.velocities.clone();
 
             for step in 0..100 {

@@ -11,10 +11,10 @@ pub struct Atoms {
 
 impl Atoms {
     pub fn new(nb_atoms: usize) -> Self {
-        let mut masses = Array1::ones(nb_atoms);
-        let mut positions = Array2::zeros((3, nb_atoms));
-        let mut velocities = Array2::zeros((3, nb_atoms));
-        let mut forces = Array2::zeros((3, nb_atoms));
+        let masses = Array1::ones(nb_atoms);
+        let positions = Array2::zeros((3, nb_atoms));
+        let velocities = Array2::zeros((3, nb_atoms));
+        let forces = Array2::zeros((3, nb_atoms));
         Self {
             masses,
             positions,

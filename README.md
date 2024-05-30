@@ -1,4 +1,4 @@
-[![Rust](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/rust.yml/badge.svg)](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/rust.yml)
+[![Build & Test](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/build_and_test.yml)
 # rsmd
 OMG! Molecular Dynamics with Rust!
 

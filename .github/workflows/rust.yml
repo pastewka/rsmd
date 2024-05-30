@@ -17,6 +17,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose
-      run: cargo test --verbose
-      run: cargo bench --verbose
+      run: |
+      echo "A initial message"
+      cargo build --verbose
+      cargo test --verbose
+      cargo bench --verbose

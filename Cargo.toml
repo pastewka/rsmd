@@ -8,10 +8,14 @@ clippy = {version = "*", optional = true}
 ndarray = "0.15.6"
 itertools = "0.12.1"
 rand_isaac = "0.3.0"
+env_logger = "0.11.3"
+log = "0.4.21"
 
 [dev-dependencies]
 ndarray-rand = "=0.14.0"
 googletest = "=0.2.0"
+criterion = {version = "0.5.1", features = ["html_reports"]}
+  
 
 [features]
 default = []
@@ -21,3 +25,7 @@ dev = ["clippy"]
 [[bin]]
 name = "04"
 path = "src/04.rs"
+
+[[bench]]
+name = "lj_direct_summation_benchmark"
+harness = false

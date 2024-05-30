@@ -41,7 +41,6 @@ impl Atoms {
         vz_vec: Vec<f64>,
     ) {
         let nb_atoms = &x_vec.len();
-        Self::print_type_of(nb_atoms);
         self.push_pos_vec(x_vec, y_vec, z_vec);
         for i in 0..*nb_atoms as usize {
             self.velocities[[0, i]] = vx_vec[i];

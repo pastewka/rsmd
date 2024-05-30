@@ -6,36 +6,32 @@ fn criterion_benchmark(c: &mut Criterion) {
     const EPSILON: f64 = 0.7;
     const SIGMA: f64 = 0.3;
 
-    let input_files = &[
-        "lj_cube_8.xyz",
-        "lj_cube_27.xyz",
-        "lj_cube_64.xyz",
-        "lj_cube_125.xyz",
-        "lj_cube_216.xyz",
-        "lj_cube_343.xyz",
-        "lj_cube_512.xyz",
-        "lj_cube_729.xyz",
-        "lj_cube_1000.xyz",
-    ];
+    let json_file_path = "benchmark_lj_direct_summation.json";
+    let content = fs::read_to_string(json_file_path).expect("JSON file \"benchmark_lj_direct_summation.json\" could not be loaded to benchmark with the specified input files.");
+    let json: serde_json::Value =
+        serde_json::from_str(&content).expect("JSON was not well-formatted");
 
-    for path in input_files {
-        if !fs::metadata(path).is_ok() {
+    let input_files = json.as_array().expect(
+        &("The JSON file \"".to_owned()
+            + json_file_path
+            + "\" doesn't contain a valid JSON array with the filenames of the input files."),
+    );
+
+    for json_path in input_files {
+        let path = json_path.as_str().unwrap();
+        if !fs::metadata(&path).is_ok() {
             panic!("input file \"{}\" doesn't exist!", path);
         }
     }
 
     let mut group = c.benchmark_group("different_sized_lj_clusters");
-    for i in 0..input_files.len() {
+    for f in input_files {
+        let path = f.as_str().unwrap(); //&input_files[i].as_str().unwrap();
         group.bench_function(
-            BenchmarkId::new(
-                "lj_direct_summation",
-                "input_file_".to_owned() + &input_files[i].to_string(),
-            ),
+            BenchmarkId::new("lj_direct_summation", "input_file_".to_owned() + &path),
             |b| {
                 b.iter_batched_ref(
-                    || -> Atoms {
-                        md_implementation::xyz::read_xyz(input_files[i].to_string()).unwrap()
-                    },
+                    || -> Atoms { md_implementation::xyz::read_xyz(path.to_string()).unwrap() },
                     |v| black_box(v.lj_direct_summation(Some(EPSILON), Some(SIGMA))),
                     BatchSize::SmallInput,
                 )

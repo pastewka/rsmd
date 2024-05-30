@@ -1,4 +1,4 @@
-name: Rust
+name: Build & Test
 
 on:
   push:
@@ -20,13 +20,3 @@ jobs:
       run: cargo build --verbose
     - name: test
       run: cargo test --verbose
-
-    - name: Run benchmark
-      run: cargo bench
-      
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11.6'
-    - name: plot Benchmark
-      run: python3 plot.py

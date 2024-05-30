@@ -20,8 +20,6 @@ jobs:
       run: cargo build --verbose
     - name: test
       run: cargo test --verbose
-    - name: Code Coverage Summary
-      uses: irongut/CodeCoverageSummary@v1.3.0
 
     - name: Run benchmark
       run: cargo bench

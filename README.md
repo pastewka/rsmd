@@ -1,3 +1,4 @@
+[![Rust](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/rust.yml/badge.svg)](https://github.com/Heavypilgrim/MscMolecDynRustProject/actions/workflows/rust.yml)
 # rsmd
 OMG! Molecular Dynamics with Rust!
 

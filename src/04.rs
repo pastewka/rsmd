@@ -11,6 +11,7 @@ const NB_ITERATIONS: u32 = 1000000;
 const SCREEN_INTERVAL: u32 = 1000;
 const FILE_INTERVAL: u32 = 1000;
 const TIMESTEP: f64 = 0.0001;
+const INPUT_FOLDER: &str = "input_files/";
 
 fn main() {
     #![cfg_attr(feature = "dev", feature(plugin))]
@@ -22,7 +23,8 @@ fn main() {
     //        unsafe_code,
     //        unstable_features,
     //        unused_import_braces, unused_qualifications)]
-    let mut atoms = md_implementation::xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
+    let mut atoms =
+        md_implementation::xyz::read_xyz(INPUT_FOLDER.to_owned() + "cluster_3871.xyz").unwrap();
     println!(
         "atom configuration loaded with {} atoms",
         atoms.positions.ncols()

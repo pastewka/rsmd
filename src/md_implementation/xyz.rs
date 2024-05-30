@@ -111,9 +111,11 @@ mod tests {
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
     use std::fs;
 
+    const FOLDER: &str = "input_files/";
+
     #[test]
     fn test_read_xyz() {
-        let atoms = xyz::read_xyz("cluster_3871.xyz".to_string()).unwrap();
+        let atoms = xyz::read_xyz(FOLDER.to_owned() + "cluster_3871.xyz").unwrap();
 
         assert_eq!(3871, atoms.positions.shape()[1]);
         assert_eq!(3871, atoms.velocities.shape()[1]);
@@ -142,7 +144,8 @@ mod tests {
     }
     #[test]
     fn test_read_xyz_with_velocities() {
-        let atoms = xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
+        let atoms =
+            xyz::read_xyz_with_velocities(FOLDER.to_owned() + "lj54InclVelocity.xyz").unwrap();
 
         assert_eq!(54, atoms.positions.shape()[1]);
         assert_eq!(54, atoms.velocities.shape()[1]);
@@ -200,7 +203,7 @@ mod tests {
         atoms.velocities = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
         atoms.masses = Array::ones(nb_atoms);
 
-        let traj_path = "tmp_rand_traj_test_write_read_xyz.xyz".to_string();
+        let traj_path = FOLDER.to_owned() + "tmp_rand_traj_test_write_read_xyz.xyz";
         xyz::write_xyz(traj_path.clone(), atoms.clone()).unwrap();
         let atoms_read = xyz::read_xyz_with_velocities(traj_path.clone()).unwrap();
 

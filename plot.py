@@ -4,9 +4,10 @@ import re
 
 
 def plotMenchmarkResultLjDirectSummation():
+    folder = "input_files/"
     time = []
     atoms = []
-    with open("benchmark_lj_direct_summation.json") as benchmark_file:
+    with open(folder + "benchmark_lj_direct_summation.json") as benchmark_file:
         for bench_name in json.load(benchmark_file):
             with open(
                 "target/criterion/different_sized_lj_clusters/lj_direct_summation/input_file_"

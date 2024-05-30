@@ -21,10 +21,13 @@ impl Atoms {
 mod tests {
     use crate::md_implementation::{atoms::Atoms, xyz};
     use googletest::{matchers::near, verify_that};
+
+    const FOLDER: &str = "input_files/";
+
     #[test]
     fn test_kinetic_energy() {
         let atoms: Atoms =
-            xyz::read_xyz_with_velocities("lj54InclVelocity.xyz".to_string()).unwrap();
+            xyz::read_xyz_with_velocities(FOLDER.to_owned() + "lj54InclVelocity.xyz").unwrap();
         assert_eq!(atoms.positions.nrows(), 3);
         assert_eq!(atoms.positions.ncols(), 54);
 

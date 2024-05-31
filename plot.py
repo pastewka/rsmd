@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import json
 import re
-
+from sys import argv
 
 def plotMenchmarkResultLjDirectSummation():
     folder = "input_files/"
@@ -21,8 +21,6 @@ def plotMenchmarkResultLjDirectSummation():
                 )  # convert ns to ms
                 match = re.search(r"(\d+)\.xyz$", bench_name)
                 atoms.append(match.group(1))
-    print(time)
-    print(atoms)
 
     plt.plot(time, atoms, marker="x", label="Rust")
     time = [
@@ -50,7 +48,11 @@ def plotMenchmarkResultLjDirectSummation():
     plt.ylabel("number of atoms")
     plt.legend()
     plt.grid()
-    plt.show()
+    if len(argv) >= 2:
+        if argv[1] == "p" or argv[1] == "plot" or argv[1] == "-p" or argv[1] == "-plot":
+            plt.show()
+    plt.savefig("docs/LJ_Direct_Summation_Benchmark_Rust_Vs_C++",format="png")
+
 
 
 plotMenchmarkResultLjDirectSummation()

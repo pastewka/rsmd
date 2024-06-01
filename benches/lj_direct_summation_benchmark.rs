@@ -2,6 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Benchmark
 use rsmd::md_implementation::{self, atoms::Atoms};
 use std::fs;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn criterion_benchmark(c: &mut Criterion) {
     const EPSILON: f64 = 0.7;
     const SIGMA: f64 = 0.3;

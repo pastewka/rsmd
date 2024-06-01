@@ -10,6 +10,7 @@ itertools = "0.12.1"
 rand_isaac = "0.3.0"
 env_logger = "0.11.3"
 log = "0.4.21"
+mimalloc = "0.1.42"
 
 [dev-dependencies]
 ndarray-rand = "=0.14.0"
@@ -33,6 +34,6 @@ name = "lj_direct_summation_benchmark"
 harness = false
 
 [profile.release]
-lto = true
+lto = "thin"
 codegen-units = 1
 panic = "abort"

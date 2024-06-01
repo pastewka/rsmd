@@ -16,5 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: build in release mode with THP on
+      run: MALLOC_CONF="thp:always,metadata_thp:always" cargo build --release
     - name: Run benchmark
       run: cargo bench

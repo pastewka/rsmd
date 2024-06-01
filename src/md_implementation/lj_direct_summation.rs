@@ -1,6 +1,5 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::Array1;
-use std::ops::{AddAssign, SubAssign};
+use ndarray::{Array1,Array2};
 
 impl Atoms {
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
@@ -10,21 +9,28 @@ impl Atoms {
 
         for i in 0..self.positions.shape()[1] {
             for j in i + 1..self.positions.shape()[1] {
-                let mut distance_vector: Array1<f64> = self.positions.column(i).to_owned();
-                distance_vector.sub_assign(&self.positions.column(j));
-                let distance: f64 = (&distance_vector * &distance_vector).sum().sqrt();
+                let distance_vector = distance_vector(&self.positions, i, j);
+                let distance: f64 = distance_vector.dot(&distance_vector).sqrt();
+                
                 let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
                 potential_energy += pair_energy;
-                let force_vector: Array1<f64> = pair_force * &distance_vector / distance;
-                self.forces.column_mut(i).add_assign(&force_vector);
-                self.forces.column_mut(j).sub_assign(&force_vector);
+
+                //add force vector to ith and subtract it from jth force column
+                self.forces.column_mut(i).scaled_add(pair_force / distance, &distance_vector);
+                self.forces.column_mut(j).scaled_add(-pair_force / distance, &distance_vector);
             }
         }
         return potential_energy;
     }
 }
+
 #[inline]
-pub fn lj_pair(distance: f64, epsilon: f64, sigma: f64) -> (f64, f64) {
+fn distance_vector(positions: &Array2<f64>, i: usize, j: usize) -> Array1<f64> {
+    return &positions.column(i) - &positions.column(j);
+}
+
+#[inline]
+fn lj_pair(distance: f64, epsilon: f64, sigma: f64) -> (f64, f64) {
     let sd = &sigma / &distance;
     let sd2 = &sd * &sd;
     let sd6 = &sd2 * &sd2 * &sd2;

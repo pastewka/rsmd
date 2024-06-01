@@ -50,10 +50,10 @@ def plotMenchmarkResultLjDirectSummation():
     plt.ylabel("number of atoms")
     plt.legend()
     plt.grid()
+    plt.savefig("docs/LJ_Direct_Summation_Benchmark_Rust_Vs_C++.png",format="png")
     if len(argv) >= 2:
         if argv[1] == "p" or argv[1] == "plot" or argv[1] == "-p" or argv[1] == "-plot":
             plt.show()
-    plt.savefig("docs/LJ_Direct_Summation_Benchmark_Rust_Vs_C++.png",format="png")
 
 
 

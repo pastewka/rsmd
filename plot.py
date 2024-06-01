@@ -10,7 +10,7 @@ def plotMenchmarkResultLjDirectSummation():
     with open(folder + "benchmark_lj_direct_summation.json") as benchmark_file:
         for bench_name in json.load(benchmark_file):
             with open(
-                "target/criterion/different_sized_lj_clusters/lj_direct_summation/input_file_"
+                "target/criterion/different_sized_lj_clusters/lj_direct_summation/input_files_"
                 + bench_name
                 + "/new/estimates.json"
             ) as measurement_file:

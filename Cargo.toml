@@ -31,3 +31,8 @@ path = "src/04.rs"
 [[bench]]
 name = "lj_direct_summation_benchmark"
 harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

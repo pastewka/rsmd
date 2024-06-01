@@ -10,7 +10,7 @@ itertools = "0.12.1"
 rand_isaac = "0.3.0"
 env_logger = "0.11.3"
 log = "0.4.21"
-mimalloc = "0.1.42"
+tikv-jemallocator = "0.5.4"
 
 [dev-dependencies]
 ndarray-rand = "=0.14.0"

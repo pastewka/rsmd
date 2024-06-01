@@ -8,7 +8,7 @@ use rsmd::md_implementation;
 //use ndarray_rand::{RandomExt, rand_dist};
 
 #[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 const NB_ITERATIONS: u32 = 1000000;
 const SCREEN_INTERVAL: u32 = 1000;

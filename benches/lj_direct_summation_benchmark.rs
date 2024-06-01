@@ -3,7 +3,7 @@ use rsmd::md_implementation::{self, atoms::Atoms};
 use std::fs;
 
 #[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 fn criterion_benchmark(c: &mut Criterion) {
     const EPSILON: f64 = 0.7;

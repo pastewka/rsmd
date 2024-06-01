@@ -23,24 +23,26 @@ def plotMenchmarkResultLjDirectSummation():
                 atoms.append(match.group(1))
 
     plt.plot(time, atoms, marker="x", label="Rust")
-    time = [
-        8.6319e-02,
-        1.02854,
-        5.83044,
-        20.6786,
-        54.5749,
-        119.574,
-        261.331,
-        526.098,
-        984.54,
-        1752.07,
-        2961.46,
-        4802.24,
-        7433.54,
-        11358.3,
-        14850.3,
-        16547.2,
+    t = [
+        9.43e-07,
+        8.186e-06,
+        4.6262e-05,
+        0.000177433,
+        0.000531137,
+        0.00135132,
+        0.00321028,
+        0.00678484,
+        0.0120352,
+        0.015849,
+        0.0268553,
+        0.0419334,
+        0.0661737,
+        0.0934785,
+        0.110992,
+        0.130721
     ]
+    time = [i*1000 for i in t]
+    print(time)
 
     plt.plot(time, atoms, marker="x", label="C++")
     plt.title("LJ Direct Summation Benchmark")

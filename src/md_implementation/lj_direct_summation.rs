@@ -1,5 +1,5 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::{Array1,Array2};
+use ndarray::Axis;
 
 impl Atoms {
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
@@ -7,26 +7,29 @@ impl Atoms {
         let sigma: f64 = sigma_opt.unwrap_or(1.0);
         let mut potential_energy = 0f64;
 
-        for i in 0..self.positions.shape()[1] {
-            for j in i + 1..self.positions.shape()[1] {
-                let distance_vector = distance_vector(&self.positions, i, j);
-                let distance: f64 = distance_vector.dot(&distance_vector).sqrt();
-                
-                let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
-                potential_energy += pair_energy;
+        let mut i = self.positions.column(0).clone();
+        let iter_cols = &mut self.positions.axis_iter(Axis(1)).skip(1);
+        let mut index_of_i = 0;
 
-                //add force vector to ith and subtract it from jth force column
-                self.forces.column_mut(i).scaled_add(pair_force / distance, &distance_vector);
-                self.forces.column_mut(j).scaled_add(-pair_force / distance, &distance_vector);
-            }
+        while let Some(j) = iter_cols.next() {
+            let distance_vector = &i.view() - &j.view();
+            let distance: f64 = distance_vector.dot(&distance_vector).sqrt();
+
+            let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
+            potential_energy += pair_energy;
+
+            //add force vector to ith and subtract it from jth force column
+            self.forces
+                .column_mut(index_of_i)
+                .scaled_add(pair_force / distance, &distance_vector);
+            self.forces
+                .column_mut(index_of_i + 1)
+                .scaled_add(-pair_force / distance, &distance_vector);
+            i = j;
+            index_of_i += 1;
         }
         return potential_energy;
     }
-}
-
-#[inline]
-fn distance_vector(positions: &Array2<f64>, i: usize, j: usize) -> Array1<f64> {
-    return &positions.column(i) - &positions.column(j);
 }
 
 #[inline]

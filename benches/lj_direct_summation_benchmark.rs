@@ -31,17 +31,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("different_sized_lj_clusters");
     for f in input_files {
         let path = folder.to_owned() + &"/".to_owned() + f.as_str().unwrap();
-        println!("{}",&path.to_string());
-        group.bench_function(
-            BenchmarkId::new("lj_direct_summation", &path),
-            |b| {
-                b.iter_batched_ref(
-                    || -> Atoms { md_implementation::xyz::read_xyz(path.to_string()).unwrap() },
-                    |v| black_box(v.lj_direct_summation(Some(EPSILON), Some(SIGMA))),
-                    BatchSize::SmallInput,
-                )
-            },
-        );
+        println!("{}", &path.to_string());
+        group.bench_function(BenchmarkId::new("lj_direct_summation", &path), |b| {
+            b.iter_batched_ref(
+                || -> Atoms { md_implementation::xyz::read_xyz(path.to_string()).unwrap() },
+                |v| black_box(v.lj_direct_summation(Some(EPSILON), Some(SIGMA))),
+                BatchSize::SmallInput,
+            )
+        });
     }
     group.finish();
 }

@@ -1,35 +1,72 @@
 use crate::md_implementation::atoms::Atoms;
 use ndarray::Axis;
+use std::ops::Mul;
 
 impl Atoms {
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
         let epsilon: f64 = epsilon_opt.unwrap_or(1.0);
         let sigma: f64 = sigma_opt.unwrap_or(1.0);
+        self.forces.fill(0.0);
         let mut potential_energy = 0f64;
 
-        let mut i = self.positions.column(0).clone();
-        let iter_cols = &mut self.positions.axis_iter(Axis(1)).skip(1);
-        let mut index_of_i = 0;
+        for index_of_i in 0..self.positions.shape()[1] {
+            let i = self.positions.column(index_of_i);
+            let iter_cols = &mut self.positions.axis_iter(Axis(1)).skip(index_of_i + 1);
+            let mut index_of_j = index_of_i + 1;
 
-        while let Some(j) = iter_cols.next() {
-            let distance_vector = &i.view() - &j.view();
-            let distance: f64 = distance_vector.dot(&distance_vector).sqrt();
+            while let Some(j) = iter_cols.next() {
+                println!(
+                    "\n--------------------------------------------\n
+                i_pos: {:?}\nj_pos: {:?}",
+                    &i.view(),
+                    &j.view()
+                );
+                let distance_vector = &i.view() - &j.view();
+                println!(
+                    "
+                index_of_i: {}; index of j: {}
+                \ndistance_vec: {:?}",
+                    index_of_i, index_of_j, distance_vector
+                );
+                let squared = distance_vector.clone() * distance_vector.clone();
+                println!("squared: {:?}", squared);
+                let distance: f64 = squared.sum().sqrt();
 
-            let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
-            potential_energy += pair_energy;
+                println!("distance: {}", distance);
+                let (pair_energy, mut pair_force) = lj_pair(distance, epsilon, sigma);
+                println!("pair_energy: {}; pair_force: {}", pair_energy, pair_force);
+                potential_energy += pair_energy;
 
-            //add force vector to ith and subtract it from jth force column
-            self.forces
-                .column_mut(index_of_i)
-                .scaled_add(pair_force / distance, &distance_vector);
-            self.forces
-                .column_mut(index_of_i + 1)
-                .scaled_add(-pair_force / distance, &distance_vector);
-            i = j;
-            index_of_i += 1;
+                //add force vector to ith and subtract it from jth force column
+                let force_vector = distance_vector / distance;
+                println!("distance_vector/distance: {}", force_vector);
+
+                //self.forces.column_mut(index_of_i) += (pair_force * force_vector);//self.forces.column(index_of_i).scaled_add(pair_force, &force_vector);
+                self.forces
+                    .column_mut(index_of_i)
+                    .scaled_add(pair_force, &force_vector);
+                println!("forces after 1st add: {:?}", self.forces);
+                //pair_force = -pair_force;
+                self.forces
+                    .column_mut(index_of_j)
+                    .scaled_add(-pair_force, &force_vector);
+                println!("forces after 2nd add: {:?}", self.forces);
+                index_of_j += 1;
+                //i = j;
+                //index_of_i += 1;
+            }
         }
         return potential_energy;
     }
+}
+
+#[inline]
+fn square_ref<A>(n: &A) -> A
+where
+    // note the &'a A instead of just A
+    for<'a> &'a A: Mul<&'a A, Output = A>,
+{
+    n.mul(n)
 }
 
 #[inline]
@@ -62,6 +99,8 @@ mod tests {
         const SEED: u64 = 42;
         let mut rng = Isaac64Rng::seed_from_u64(SEED);
         let mut atoms = Atoms::new(usize::try_from(NB_ATOMS).unwrap());
+        assert_eq!(NB_ATOMS, atoms.positions.shape()[1]);
+        assert_eq!(3, atoms.positions.shape()[0]);
 
         atoms.positions = Array::random_using((3, NB_ATOMS), Uniform::new(-1.0, 1.0), &mut rng);
         println!("position[[0,0]]: {}", atoms.positions[[0, 0]]);

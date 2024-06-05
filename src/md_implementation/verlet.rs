@@ -1,13 +1,16 @@
 use crate::md_implementation::atoms::Atoms;
+use ndarray::Axis;
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
         self.verlet_velo_update(timestep);
+        println!("v_upd: {:?}", self.velocities);
         for i in 0..self.positions.shape()[0] {
             for j in 0..self.positions.shape()[1] {
                 self.positions[[i, j]] += self.velocities[[i, j]] * timestep;
             }
         }
+        println!("p_upd: {:?}", self.positions);
     }
 
     pub fn verlet_step2(&mut self, timestep: f64) {
@@ -15,17 +18,25 @@ impl Atoms {
     }
 
     fn verlet_velo_update(&mut self, timestep: f64) {
-        let velo_update = 0.5 * &timestep * &self.forces;
+        println!("forces: {}", &self.forces);
+        let mut velo_update = 0.5 * &timestep * &self.forces;
 
+        println!("velo_upd: {:?}", &velo_update);
         let mass_trans = self.masses.t(); //TODO:maybe transpose not even necessary..
         println!("Masses transp.: {:?}", &mass_trans);
-        let masses_broadcast = mass_trans.broadcast(velo_update.shape()).unwrap();
+        let masses_broadcast = mass_trans; //.broadcast(velo_update.shape()).unwrap();
         println!("Masses transp. & broadcasted: {:?}", masses_broadcast);
-        let velo_update_divided = velo_update / &masses_broadcast;
-        println!("velo_upd / masses.T: {:?}", &velo_update_divided);
-        for i in 0..3 {
-            for j in 0..5 {
-                self.velocities[[i, j]] += velo_update_divided[[i, j]];
+
+        for mut row in velo_update.axis_iter_mut(Axis(0)) {
+            println!("row {:?}", &row);
+            row /= &mass_trans;
+        }
+
+        //Zip::from(velo_update.columns().and(&masses_broadcast.columns())/ &masses_broadcast;
+        println!("velo_upd / masses.T: {:?}", &velo_update);
+        for i in 0..self.positions.shape()[0] {
+            for j in 0..self.positions.shape()[1] {
+                self.velocities[[i, j]] += velo_update[[i, j]];
             }
         }
     }
@@ -39,7 +50,7 @@ mod tests {
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
 
     #[test]
-    fn test_verlet() {
+    fn test_verlet_random() {
         let nb_atoms = 5;
         let mut atoms = Atoms::new(usize::try_from(nb_atoms).unwrap());
 

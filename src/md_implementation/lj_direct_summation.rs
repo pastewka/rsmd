@@ -8,13 +8,15 @@ impl Atoms {
         self.forces.fill(0.0);
         let mut potential_energy = 0f64;
 
-        for (index_of_i, i) in self.positions.axis_iter(Axis(1)).enumerate(){
+        for (index_of_i, i) in self.positions.axis_iter(Axis(1)).enumerate() {
             let iter_cols_j = &mut self.positions.axis_iter(Axis(1)).skip(index_of_i + 1);
             let mut index_of_j = index_of_i + 1;
 
             while let Some(j) = iter_cols_j.next() {
                 let distance_vector = &i.view() - &j.view();
-                let distance: f64 = (distance_vector.clone() * distance_vector.clone()).sum().sqrt();
+                let distance: f64 = (distance_vector.clone() * distance_vector.clone())
+                    .sum()
+                    .sqrt();
 
                 let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
                 potential_energy += pair_energy;

@@ -33,7 +33,16 @@ path = "src/04.rs"
 name = "lj_direct_summation_benchmark"
 harness = false
 
+[[bench]]
+name = "ndarray_iteration_benchmark"
+harness = false
+
+#[[bench]]
+#name = "verlet_benchmark"
+#harness = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
 panic = "abort"
+debug = 1

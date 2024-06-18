@@ -11,3 +11,14 @@ OMG! Molecular Dynamics with Rust!
 ![image](https://github.com/Heavypilgrim/MscMolecDynRustProject/blob/main/docs/LJ_Direct_Summation_Benchmark_Rust_Vs_C++.png?raw=true)
 
 - To run the benchmark on the C++ yamd, please use the repo https://github.com/Heavypilgrim/MscMolecDynCPPBenchmark.
+
+### Verlet loop over ndarray positions and velocities
+- To implement the iteration over all positions and velocities simultaneously and with the best performance, the following chart depicts the performance of different loop variations:
+![image](https://github.com/Heavypilgrim/MscMolecDynRustProject/blob/main/docs/ndarray_verlet_iteration_benchmark.svg?raw=true)
+- The best performing one uses Zip to combine the two iterators for positions and velocities. (named loop_zip in chart)
+```Zip::from(&mut self.positions)
+            .and(&self.velocities)
+            .for_each(|position, &velocity| {
+                *position += velocity * 0.0001;
+            });
+```

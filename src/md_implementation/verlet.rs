@@ -1,15 +1,15 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::{Axis,Zip};
+use ndarray::{Axis, Zip};
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
         self.verlet_velo_update(timestep);
 
         Zip::from(&mut self.positions)
-        .and(&self.velocities)
-        .for_each(|position, &velocity| {
-            *position += velocity * 0.0001;
-        });
+            .and(&self.velocities)
+            .for_each(|position, &velocity| {
+                *position += velocity * 0.0001;
+            });
         //println!("p_upd: {:?}", self.positions);
     }
 

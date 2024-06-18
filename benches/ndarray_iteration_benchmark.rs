@@ -1,11 +1,32 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use ndarray::Zip;
-use ndarray::{iter::Axes, Array, Array1, Axis};
+use ndarray::Array;
 use ndarray_rand::{rand_distr::Uniform, RandomExt};
-use rsmd::md_implementation::{self, atoms::Atoms};
+use rsmd::md_implementation::{atoms::Atoms};
 
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+fn iterations_valid() -> bool {
+    let mut atoms_vec: Vec<Atoms> = vec![init_atoms(10); 3];
+    loop_over_ndarrays_elementwise(&mut atoms_vec[0]);
+    loop_over_ndarrays_rowwise_scaled_add(&mut atoms_vec[1]);
+    loop_zip_over_ndarrays_rowwise(&mut atoms_vec[2]);
+    for a in atoms_vec.iter() {
+        for i in 0..a.positions.shape()[0] {
+            for j in 0..a.positions.shape()[1] {
+                if a.positions[[i, j]] != atoms_vec[0].positions[[i, j]]
+                    || a.velocities[[i, j]] != atoms_vec[0].velocities[[i, j]]
+                    || a.forces[[i, j]] != atoms_vec[0].forces[[i, j]]
+                    || a.masses[i] != atoms_vec[0].masses[i]
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
 
 fn ndarray_iterations(c: &mut Criterion) {
     let mut group_verlet_loop = c.benchmark_group("ndarray_iteration_verlet_loop");
@@ -15,6 +36,8 @@ fn ndarray_iterations(c: &mut Criterion) {
     let num_arr_elements = 10;
 
     let nb_atoms_arr: Vec<usize> = (0..num_arr_elements).map(|i| start + i * step).collect();
+
+    assert!(iterations_valid());
 
     for i in nb_atoms_arr.iter() {
         group_verlet_loop.bench_function(BenchmarkId::new("loop_elementwise", i), |b| {
@@ -80,12 +103,3 @@ criterion_group!(
     ndarray_iterations //, colwise_iteration,rowwise_iteration
 );
 criterion_main!(benches);
-
-#[cfg(test)]
-mod tests {
-    use crate::md_implementation::atoms::Atoms;
-    use googletest::{matchers::near, verify_that};
-
-    #[test]
-    fn test_iteration_validity() {}
-}

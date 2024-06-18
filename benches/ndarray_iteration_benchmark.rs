@@ -1,17 +1,19 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use ndarray::Zip;
 use ndarray::Array;
+use ndarray::Zip;
 use ndarray_rand::{rand_distr::Uniform, RandomExt};
-use rsmd::md_implementation::{atoms::Atoms};
+use rsmd::md_implementation::atoms::Atoms;
 
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 fn iterations_valid() -> bool {
-    let mut atoms_vec: Vec<Atoms> = vec![init_atoms(10); 3];
+    let mut atoms_vec: Vec<Atoms> = vec![init_atoms(10); 5];
     loop_over_ndarrays_elementwise(&mut atoms_vec[0]);
     loop_over_ndarrays_rowwise_scaled_add(&mut atoms_vec[1]);
-    loop_zip_over_ndarrays_rowwise(&mut atoms_vec[2]);
+    loop_over_ndarrays_rowwise(&mut atoms_vec[2]);
+    loop_zip_over_ndarrays_rowwise(&mut atoms_vec[3]);
+    loop_zip(&mut atoms_vec[4]);
     for a in atoms_vec.iter() {
         for i in 0..a.positions.shape()[0] {
             for j in 0..a.positions.shape()[1] {
@@ -56,10 +58,26 @@ fn ndarray_iterations(c: &mut Criterion) {
             )
         });
 
+        group_verlet_loop.bench_function(BenchmarkId::new("loop_rowwise", i), |b| {
+            b.iter_batched_ref(
+                || -> Atoms { init_atoms(*i) },
+                |v| black_box(loop_over_ndarrays_rowwise(v)),
+                BatchSize::SmallInput,
+            )
+        });
+
         group_verlet_loop.bench_function(BenchmarkId::new("loop_zip_rowwise", i), |b| {
             b.iter_batched_ref(
                 || -> Atoms { init_atoms(*i) },
                 |v| black_box(loop_zip_over_ndarrays_rowwise(v)),
+                BatchSize::SmallInput,
+            )
+        });
+
+        group_verlet_loop.bench_function(BenchmarkId::new("loop_zip", i), |b| {
+            b.iter_batched_ref(
+                || -> Atoms { init_atoms(*i) },
+                |v| black_box(loop_zip(v)),
                 BatchSize::SmallInput,
             )
         });
@@ -89,12 +107,26 @@ fn loop_over_ndarrays_rowwise_scaled_add(atoms: &mut Atoms) {
         row.scaled_add(0.0001, &atoms.velocities.row(i));
     }
 }
+fn loop_over_ndarrays_rowwise(atoms: &mut Atoms) {
+    for (i, mut row) in atoms.positions.rows_mut().into_iter().enumerate() {
+        for (position, &velocity) in row.iter_mut().zip(atoms.velocities.row(i).iter()) {
+            *position += velocity * 0.0001;
+        }
+    }
+}
 
 fn loop_zip_over_ndarrays_rowwise(atoms: &mut Atoms) {
     Zip::from(atoms.positions.rows_mut())
         .and(atoms.velocities.rows())
         .for_each(|mut position, velocity| {
             position.scaled_add(0.0001, &velocity);
+        });
+}
+fn loop_zip(atoms: &mut Atoms) {
+    Zip::from(&mut atoms.positions)
+        .and(&atoms.velocities)
+        .for_each(|position, &velocity| {
+            *position += velocity * 0.0001;
         });
 }
 

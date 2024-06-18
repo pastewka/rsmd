@@ -1,16 +1,16 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::Axis;
+use ndarray::{Axis,Zip};
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
         self.verlet_velo_update(timestep);
-        println!("v_upd: {:?}", self.velocities);
-        for i in 0..self.positions.shape()[0] {
-            for j in 0..self.positions.shape()[1] {
-                self.positions[[i, j]] += self.velocities[[i, j]] * timestep;
-            }
-        }
-        println!("p_upd: {:?}", self.positions);
+
+        Zip::from(&mut self.positions)
+        .and(&self.velocities)
+        .for_each(|position, &velocity| {
+            *position += velocity * 0.0001;
+        });
+        //println!("p_upd: {:?}", self.positions);
     }
 
     pub fn verlet_step2(&mut self, timestep: f64) {
@@ -18,22 +18,18 @@ impl Atoms {
     }
 
     fn verlet_velo_update(&mut self, timestep: f64) {
-        println!("forces: {}", &self.forces);
+        //println!("forces: {}", &self.forces);
         let mut velo_update = 0.5 * &timestep * &self.forces;
 
-        println!("velo_upd: {:?}", &velo_update);
-        let mass_trans = self.masses.t(); //TODO:maybe transpose not even necessary..
-        println!("Masses transp.: {:?}", &mass_trans);
-        let masses_broadcast = mass_trans; //.broadcast(velo_update.shape()).unwrap();
-        println!("Masses transp. & broadcasted: {:?}", masses_broadcast);
+        //println!("Masses transp.: {:?}", &self.masses);
 
         for mut row in velo_update.axis_iter_mut(Axis(0)) {
-            println!("row {:?}", &row);
-            row /= &mass_trans;
+            //println!("row {:?}", &row);
+            row /= &self.masses;
         }
 
         //Zip::from(velo_update.columns().and(&masses_broadcast.columns())/ &masses_broadcast;
-        println!("velo_upd / masses.T: {:?}", &velo_update);
+        //println!("velo_upd / masses.T: {:?}", &velo_update);
         for i in 0..self.positions.shape()[0] {
             for j in 0..self.positions.shape()[1] {
                 self.velocities[[i, j]] += velo_update[[i, j]];

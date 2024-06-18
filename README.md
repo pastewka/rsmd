@@ -23,3 +23,5 @@ OMG! Molecular Dynamics with Rust!
                 *position += velocity * 0.0001;
             });
 ```
+- For detailed insights of the benchmark either open the index.html in a browser to interactively explore the individual graphs including probability density functions...
+[benchmark_verlet_folder](docs/ndarray_iteration_verlet_loop/report)!

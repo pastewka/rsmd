@@ -2,8 +2,10 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Benchmark
 use rsmd::md_implementation::{self, atoms::Atoms};
 use std::fs;
 
+use mimalloc::MiMalloc;
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+//static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 fn criterion_benchmark(c: &mut Criterion) {
     const EPSILON: f64 = 0.7;

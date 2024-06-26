@@ -4,8 +4,10 @@ use ndarray::Zip;
 use ndarray_rand::{rand_distr::Uniform, RandomExt};
 use rsmd::md_implementation::atoms::Atoms;
 
+use mimalloc::MiMalloc;
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+//static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 fn iterations_valid() -> bool {
     let mut atoms_vec: Vec<Atoms> = vec![init_atoms(10); 5];

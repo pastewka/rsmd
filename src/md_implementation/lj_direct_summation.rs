@@ -1,5 +1,6 @@
 use crate::md_implementation::atoms::Atoms;
 use ndarray::Axis;
+use ndarray_linalg::norm::Norm;
 
 impl Atoms {
     pub fn lj_direct_summation(&mut self, epsilon_opt: Option<f64>, sigma_opt: Option<f64>) -> f64 {
@@ -19,7 +20,7 @@ impl Atoms {
                     .map(|(j, x_j)| {
                         if i != j {
                             let distance_vector = &x_i - &x_j;
-                            let distance = distance_vector.dot(&distance_vector).sqrt();
+                            let distance = distance_vector.norm_l2();
                             let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
                             f_i.scaled_add(pair_force * distance.recip(), &distance_vector);
                             pair_energy * 0.5

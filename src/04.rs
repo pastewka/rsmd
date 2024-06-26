@@ -1,8 +1,10 @@
 use ndarray::{array, Array2, Array3, Axis};
 use rsmd::md_implementation::{self, xyz};
 
+use mimalloc::MiMalloc;
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+//static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 const NB_ITERATIONS: u32 = 100;
 const SCREEN_INTERVAL: u32 = 1;

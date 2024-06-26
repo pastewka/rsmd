@@ -8,6 +8,29 @@ impl Atoms {
         self.forces.fill(0.0);
         let mut potential_energy = 0f64;
 
+        //self.forces
+        //    .axis_iter_mut(Axis(1))
+        //    .zip(self.positions.axis_iter(Axis(1)))
+        //    .enumerate()
+        //    .map(|(i, (mut f_i, x_i))| {
+        //        self.positions
+        //            .axis_iter(Axis(1))
+        //            .enumerate()
+        //            .map(|(j, x_j)| {
+        //                if i != j {
+        //                    let distance_vector = &x_i - &x_j;
+        //                    let distance = distance_vector.dot(&distance_vector).sqrt();
+        //                    let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
+        //                    f_i.scaled_add(pair_force * distance.recip(), &distance_vector);
+        //                    pair_energy * 0.5
+        //                } else {
+        //                    0.
+        //                }
+        //            })
+        //            .sum::<f64>()
+        //    })
+        //    .sum()
+
         for (index_of_i, i) in self.positions.axis_iter(Axis(1)).enumerate() {
             let iter_cols_j = &mut self.positions.axis_iter(Axis(1)).skip(index_of_i + 1);
             let mut index_of_j = index_of_i + 1;
@@ -50,7 +73,7 @@ fn lj_pair(distance: f64, epsilon: f64, sigma: f64) -> (f64, f64) {
 
 #[cfg(test)]
 mod tests {
-    use crate::md_implementation::{atoms::Atoms, xyz};
+    use crate::md_implementation::atoms::Atoms;
     use googletest::{matchers::near, verify_that};
     use ndarray::Array;
     use ndarray_rand::rand::SeedableRng;
@@ -64,92 +87,82 @@ mod tests {
         const SIGMA: f64 = 0.3;
         const DELTA: f64 = 0.0001;
         const SEED: u64 = 42;
-        const INPUT_FOLDER: &str = "input_files/";
-        const INPUT_FILE: &str = "lattice_atoms_10.xyz";
-
-        let mut initial_atoms_list: Vec<Atoms> = Vec::new();
         let mut rng = Isaac64Rng::seed_from_u64(SEED);
-        initial_atoms_list.push(Atoms::new(usize::try_from(NB_ATOMS).unwrap()));
-        initial_atoms_list
-            .push(xyz::read_xyz_with_velocities(INPUT_FOLDER.to_owned() + INPUT_FILE).unwrap());
+        let mut atoms = Atoms::new(usize::try_from(NB_ATOMS).unwrap());
+        assert_eq!(NB_ATOMS, atoms.positions.shape()[1]);
+        assert_eq!(3, atoms.positions.shape()[0]);
 
-        for atoms in initial_atoms_list.iter_mut() {
-            assert_eq!(NB_ATOMS, atoms.positions.shape()[1]);
-            assert_eq!(3, atoms.positions.shape()[0]);
+        atoms.positions = Array::random_using((3, NB_ATOMS), Uniform::new(-1.0, 1.0), &mut rng);
+        println!("position[[0,0]]: {}", atoms.positions[[0, 0]]);
 
-            atoms.positions = Array::random_using((3, NB_ATOMS), Uniform::new(-1.0, 1.0), &mut rng);
-            println!("position[[0,0]]: {}", atoms.positions[[0, 0]]);
+        //compute and store original energy of the indisturbed configuration
+        let positions_original = atoms.positions.clone();
 
-            //compute and store original energy of the indisturbed configuration
-            let positions_original = atoms.positions.clone();
+        atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
+        assert_eq!(atoms.positions, positions_original);
 
-            atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
-            assert_eq!(atoms.positions, positions_original);
+        let forces_original = atoms.forces.clone();
+        println!("atoms.forces.shape(): {:?}", atoms.forces.shape());
+        println!("atoms.forces (ORIGINAL ones): {:?}\n", atoms.forces);
 
-            let forces_original = atoms.forces.clone();
-            println!("atoms.forces.shape(): {:?}", atoms.forces.shape());
-            println!("atoms.forces (ORIGINAL ones): {:?}\n", atoms.forces);
+        for j in 0..NB_ATOMS {
+            for dim in 0..atoms.positions.shape()[0] {
+                println!("atom manipulation on atom {}", j);
+                //move atom to the right of the original position
+                atoms.positions[[dim, j]] += DELTA;
+                println!("atoms.positions += DELTA: {:.64}", atoms.positions);
+                println!(
+                    "atoms.forces (BEFORE 1st lj_direct_sum): {:?}\n",
+                    atoms.forces
+                );
+                assert_eq!(
+                    atoms.positions[[dim, j]] - DELTA,
+                    positions_original[[dim, j]]
+                );
+                assert_eq!(
+                    atoms.positions[[dim, j]],
+                    positions_original[[dim, j]] + DELTA
+                );
 
-            for j in 0..NB_ATOMS {
-                for dim in 0..atoms.positions.shape()[0] {
-                    println!("atom manipulation on atom {}", j);
-                    //move atom to the right of the original position
-                    atoms.positions[[dim, j]] += DELTA;
-                    println!("atoms.positions += DELTA: {:.64}", atoms.positions);
-                    println!(
-                        "atoms.forces (BEFORE 1st lj_direct_sum): {:?}\n",
-                        atoms.forces
-                    );
-                    assert_eq!(
-                        atoms.positions[[dim, j]] - DELTA,
-                        positions_original[[dim, j]]
-                    );
-                    assert_eq!(
-                        atoms.positions[[dim, j]],
-                        positions_original[[dim, j]] + DELTA
-                    );
+                let eplus = atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
+                println!(
+                    "atoms.forces (AFTER 1st lj_direct_sum): {:?}\n",
+                    atoms.forces
+                );
 
-                    let eplus = atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
-                    println!(
-                        "atoms.forces (AFTER 1st lj_direct_sum): {:?}\n",
-                        atoms.forces
-                    );
+                //move atom to the left of the original position
+                atoms.positions[[dim, j]] -= 2.0 * DELTA;
+                println!(
+                    "atoms.positions[[{}, {}]] -= 2*DELTA: {}",
+                    dim,
+                    j,
+                    atoms.positions[[dim, j]]
+                );
+                let eminus = atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
+                println!(
+                    "atoms.forces (AFTER 2nd lj_direct_sum): {:?}\n",
+                    atoms.forces
+                );
+                //move atom back to original position
+                atoms.positions[[dim, j]] += DELTA;
 
-                    //move atom to the left of the original position
-                    atoms.positions[[dim, j]] -= 2.0 * DELTA;
-                    println!(
-                        "atoms.positions[[{}, {}]] -= 2*DELTA: {}",
-                        dim,
-                        j,
-                        atoms.positions[[dim, j]]
-                    );
-                    let eminus = atoms.lj_direct_summation(Some(EPSILON), Some(SIGMA));
-                    println!(
-                        "atoms.forces (AFTER 2nd lj_direct_sum): {:?}\n",
-                        atoms.forces
-                    );
-                    //move atom back to original position
-                    atoms.positions[[dim, j]] += DELTA;
-
-                    //finite-difference forces
-                    let fd_force = -(eplus - eminus) / (2.0 * DELTA);
-                    println!(
-                        "atom {} ; eplus {} eminus {} fd_force {}",
-                        j, eplus, eminus, fd_force
-                    );
-                    if &forces_original[[dim, j]].abs() > &1e-10 {
-                        println!("NEAR abs(fd_force - forces_original[[dim,j]])={} / forces_original[[dim,j]]={}",f64::abs(fd_force - forces_original[[dim, j]]),forces_original[[dim,j]]);
-                        verify_that!(
+                //finite-difference forces
+                let fd_force = -(eplus - eminus) / (2.0 * DELTA);
+                println!(
+                    "atom {} ; eplus {} eminus {} fd_force {}",
+                    j, eplus, eminus, fd_force
+                );
+                if &forces_original[[dim, j]].abs() > &1e-10 {
+                    println!("NEAR abs(fd_force - forces_original[[dim,j]])={} / forces_original[[dim,j]]={}",f64::abs(fd_force - forces_original[[dim, j]]),forces_original[[dim,j]]);
+                    verify_that!(
                         f64::abs(fd_force - forces_original[[dim, j]]) / &forces_original[[dim, j]],
                         near(0.0, 1e-5)
                     )
                     .unwrap_or_else(|e| panic!("Comparison of (|fd_force - force_original| / force_original) to 0.0 failed:\n{}", e));
-                    } else {
-                        verify_that!(fd_force, near(forces_original[[dim, j]], 1e-10))
-                            .unwrap_or_else(|e| {
-                                panic!("Comparison of fd_force to force_original failed:\n{}", e)
-                            });
-                    }
+                } else {
+                    verify_that!(fd_force, near(forces_original[[dim, j]], 1e-10)).unwrap_or_else(
+                        |e| panic!("Comparison of fd_force to force_original failed:\n{}", e),
+                    );
                 }
             }
         }

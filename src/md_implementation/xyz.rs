@@ -1,48 +1,23 @@
 use super::atoms::Atoms;
 use std::fs;
 use std::io;
-use std::io::prelude::*;
-use std::io::BufWriter;
+use std::io::{BufRead, Write};
 
 pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
     let file = fs::File::open(file_path)?;
     let mut reader = io::BufReader::new(file);
+    return read_xyz_from_buffer(reader);
+}
 
-    // First line has number of atoms
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
-    let nb_atoms: u32 = line.strip_suffix("\n").unwrap().parse().unwrap();
-
-    // In extended XYZ this contains cell information, we ignore it for now
-    reader.read_line(&mut line)?;
-
-    // Create empty atoms container
-    let mut atoms_arr = Atoms::new(usize::try_from(nb_atoms).unwrap());
-
-    let mut x_vec = Vec::new();
-    let mut y_vec = Vec::new();
-    let mut z_vec = Vec::new();
-    // Loop over all atoms and parse
-    for _ in 0..nb_atoms {
-        line.clear();
-        reader.read_line(&mut line)?;
-        let s: Vec<&str> = line.split_whitespace().collect();
-        let x: f64 = s.get(1).unwrap().parse().unwrap();
-        let y: f64 = s.get(2).unwrap().parse().unwrap();
-        let z: f64 = s.get(3).unwrap().parse().unwrap();
-
-        x_vec.push(x);
-        y_vec.push(y);
-        z_vec.push(z);
-    }
-    atoms_arr.push_pos_vec(x_vec, y_vec, z_vec);
-
-    Ok(atoms_arr)
+pub fn read_xyz_from_string(atoms_data: String) -> Result<Atoms, io::Error> {
+    let cursor = io::Cursor::new(atoms_data);
+    let reader = io::BufReader::new(cursor);
+    return read_xyz_from_buffer(reader);
 }
 
 pub fn write_xyz(file_path: String, atoms: Atoms) -> Result<Atoms, io::Error> {
     let file = fs::File::create(file_path)?;
-    let mut file = BufWriter::new(&file);
+    let mut file = io::BufWriter::new(&file);
     let nb_atoms: usize = atoms.positions.shape()[1];
     file.write(nb_atoms.to_string().as_bytes())?;
     file.write("\n".to_string().as_bytes())?;
@@ -104,12 +79,46 @@ pub fn read_xyz_with_velocities(file_path: String) -> Result<Atoms, io::Error> {
 
     Ok(atoms_arr)
 }
+
+fn read_xyz_from_buffer<R: io::Read>(mut reader: io::BufReader<R>) -> Result<Atoms, io::Error> {
+    // First line has number of atoms
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    let nb_atoms: u32 = line.strip_suffix("\n").unwrap().parse().unwrap();
+
+    // In extended XYZ this contains cell information, we ignore it for now
+    reader.read_line(&mut line)?;
+
+    // Create empty atoms container
+    let mut atoms_arr = Atoms::new(usize::try_from(nb_atoms).unwrap());
+
+    let mut x_vec = Vec::new();
+    let mut y_vec = Vec::new();
+    let mut z_vec = Vec::new();
+    // Loop over all atoms and parse
+    for _ in 0..nb_atoms {
+        line.clear();
+        reader.read_line(&mut line)?;
+        let s: Vec<&str> = line.split_whitespace().collect();
+        let x: f64 = s.get(1).unwrap().parse().unwrap();
+        let y: f64 = s.get(2).unwrap().parse().unwrap();
+        let z: f64 = s.get(3).unwrap().parse().unwrap();
+
+        x_vec.push(x);
+        y_vec.push(y);
+        z_vec.push(z);
+    }
+    atoms_arr.push_pos_vec(x_vec, y_vec, z_vec);
+
+    Ok(atoms_arr)
+}
 #[cfg(test)]
 mod tests {
     use crate::md_implementation::{xyz, xyz::Atoms};
     use ndarray::Array;
     use ndarray_rand::{rand_distr::Uniform, RandomExt};
     use std::fs;
+    use std::io;
 
     const FOLDER: &str = "input_files/";
 
@@ -142,6 +151,15 @@ mod tests {
         assert_eq!(7.1321, atoms.positions[[1, 3870]]);
         assert_eq!(4.668, atoms.positions[[2, 3870]]);
     }
+
+    #[test]
+    fn test_read_xyz_from_string() {
+        const ATOMS_DATA: &str = include_str!("../../input_files/lj_cube_4096.xyz");
+        let cursor = io::Cursor::new(ATOMS_DATA);
+        let reader = io::BufReader::new(cursor);
+        assert!(xyz::read_xyz_from_buffer(reader).is_ok());
+    }
+
     #[test]
     fn test_read_xyz_with_velocities() {
         let atoms =

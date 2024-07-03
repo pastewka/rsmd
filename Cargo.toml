@@ -20,7 +20,10 @@ googletest = "=0.2.0"
 criterion = {version = "0.5.1", features = ["html_reports"]}
 serde = "1.0.203"
 serde_json = "1.0.117"
+pprof = { version = "0.3", features = ["flamegraph"] }
   
+[build]
+rustflags = ["-C", "target-cpu=native"]
 
 [features]
 default = []
@@ -30,6 +33,10 @@ dev = ["clippy"]
 [[bin]]
 name = "04"
 path = "src/04.rs"
+
+[[bin]]
+name = "benchmark_noCriterion_lj_sum_4096"
+path = "bin_benches/benchmark_noCriterion_lj_sum_4096.rs"
 
 [[bench]]
 name = "lj_direct_summation_benchmark"

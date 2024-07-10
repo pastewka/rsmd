@@ -9,54 +9,29 @@ impl Atoms {
         self.forces.fill(0.0);
         let mut potential_energy = 0f64;
 
-        self.forces
-            .axis_iter_mut(Axis(1))
-            .zip(self.positions.axis_iter(Axis(1)))
-            .enumerate()
-            .map(|(i, (mut f_i, x_i))| {
-                self.positions
-                    .axis_iter(Axis(1))
-                    .enumerate()
-                    .map(|(j, x_j)| {
-                        if i != j {
-                            let distance_vector = &x_i - &x_j;
-                            let distance = distance_vector.norm_l2();
-                            let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
-                            f_i.scaled_add(pair_force * distance.recip(), &distance_vector);
-                            pair_energy * 0.5
-                        } else {
-                            0.
-                        }
-                    })
-                    .sum::<f64>()
-            })
-            .sum()
+        for (index_of_i, i) in self.positions.axis_iter(Axis(1)).enumerate() {
+            let iter_cols_j = &mut self.positions.axis_iter(Axis(1)).skip(index_of_i + 1);
+            let mut index_of_j = index_of_i + 1;
 
-        //for (index_of_i, i) in self.positions.axis_iter(Axis(1)).enumerate() {
-        //    let iter_cols_j = &mut self.positions.axis_iter(Axis(1)).skip(index_of_i + 1);
-        //    let mut index_of_j = index_of_i + 1;
+            while let Some(j) = iter_cols_j.next() {
+                let distance_vector = &i.view() - &j.view();
+                let distance: f64 = distance_vector.norm_l2();
 
-        //    while let Some(j) = iter_cols_j.next() {
-        //        let distance_vector = &i.view() - &j.view();
-        //        let distance: f64 = (distance_vector.clone() * distance_vector.clone())
-        //            .sum()
-        //            .sqrt();
+                let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
+                potential_energy += pair_energy;
 
-        //        let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
-        //        potential_energy += pair_energy;
+                let force_vector = distance_vector / distance;
 
-        //        let force_vector = distance_vector / distance;
-
-        //        self.forces
-        //            .column_mut(index_of_i)
-        //            .scaled_add(pair_force, &force_vector);
-        //        self.forces
-        //            .column_mut(index_of_j)
-        //            .scaled_add(-pair_force, &force_vector);
-        //        index_of_j += 1;
-        //    }
-        //}
-        //return potential_energy;
+                self.forces
+                    .column_mut(index_of_i)
+                    .scaled_add(pair_force, &force_vector);
+                self.forces
+                    .column_mut(index_of_j)
+                    .scaled_add(-pair_force, &force_vector);
+                index_of_j += 1;
+            }
+        }
+        return potential_energy;
     }
 }
 

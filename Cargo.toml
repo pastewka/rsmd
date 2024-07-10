@@ -34,10 +34,6 @@ dev = ["clippy"]
 name = "04"
 path = "src/04.rs"
 
-[[bin]]
-name = "benchmark_noCriterion_lj_sum_4096"
-path = "bin_benches/benchmark_noCriterion_lj_sum_4096.rs"
-
 [[bench]]
 name = "lj_direct_summation_benchmark"
 harness = false
@@ -54,5 +50,4 @@ harness = false
 lto = "fat"
 codegen-units = 1
 panic = "abort"
-#TODO: maybe add "opt-level = 3"
 debug = 1

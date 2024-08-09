@@ -21,7 +21,8 @@ impl NeighborList {
         if atoms.positions.is_empty() {
             self.seed.conservative_resize(Dim(0));
             self.neighbors.conservative_resize(Dim(0));
-            return (self.seed.clone(),self.neighbors.clone());
+            println!("Positions empty! no update processing needed!");
+            return (self.seed.clone(), self.neighbors.clone());
         }
 
         let mut origin = Array1::<f64>::from_elem(3, 3.0);
@@ -70,18 +71,22 @@ impl NeighborList {
             lengths[index_of_i] += padding_lengths[index_of_i];
         }
         println!("padding_lengths: {:?}", padding_lengths);
+        println!("origin: {:?}", origin);
+        println!("lengths: {:?}", lengths);
 
         let mut r = atoms.positions.clone();
-        for (mut col, &origin) in r.axis_iter_mut(Axis(0)).zip(origin.iter()) {
-            col -= origin;
+        println!("r before {:?}", r);
+        for mut col in r.axis_iter_mut(Axis(1)) {
+            col -= &origin;
         }
 
-        for (mut col, (grid_pts_per_len, &length)) in r
-            .axis_iter_mut(Axis(1))
-            .zip(nb_grid_points.iter().zip(lengths.iter()))
-        {
-            col *= *grid_pts_per_len as f64 / length;
+        println!("r-=origin (colwise): {:?}", r);
+
+        for mut col in r.axis_iter_mut(Axis(1)) {
+            col *= &(nb_grid_points.mapv(|nb| nb as f64) / &lengths);
         }
+
+        println!("r_o: {:?}", r);
 
         let r = r.mapv(|i| i.floor() as i32);
         println!("r input to function atom_to_cell: {:?}", r);
@@ -139,13 +144,11 @@ impl NeighborList {
 
         let mut n: usize = 0;
         let cutoff_sq = cutoff * cutoff;
-                    let mut cou: i32 = 0;
+        let mut cou: i32 = 0;
         for i in 0..atoms.positions.shape()[1] {
             self.seed[i] = n as i32;
 
             println!("=================\ncurrent seed: {:?}\ncurrent neighbors: {:?}\n======================",self.seed,self.neighbors);
-
-
 
             println!(
                 "column: {:?};\norigin: {:?};\nlengths: {:?}",
@@ -173,11 +176,14 @@ impl NeighborList {
                         .position(|(&neigh, &nb)| neigh >= nb)
                         != None
                 {
-                    cou+=1;
-                    if cou == 12{
+                    cou += 1;
+                    if cou == 12 {
                         println!("HERE...");
                     }
-                    println!("CONTINUE --- Cell out of bounds; neigh cell coords: {:?}",neigh_cell_coord);
+                    println!(
+                        "CONTINUE --- Cell out of bounds; neigh cell coords: {:?}",
+                        neigh_cell_coord
+                    );
                     continue;
                 }
                 let cell_index: i32 = Self::coordinate_to_index(
@@ -190,100 +196,88 @@ impl NeighborList {
 
                 println!("binned_atoms: {:?}", binned_atoms);
 
-let cell_test = binned_atoms[binned_atoms
-                .binary_search_by((|&(x, _)| {
-                    if x < cell_index {
+                //Find first entry within the cell neighbor list
+                let res = binned_atoms.binary_search_by(|&(x, _)| {
+                    if x == cell_index {
+                        return Ordering::Equal;
+                    } else if x < cell_index {
                         return Ordering::Less;
                     } else {
                         return Ordering::Greater;
                     }
-                })).unwrap_or_else(|x| x)];
+                });
 
-                println!("cell_test: {:?}",cell_test);
-
-                //Find first entry within the cell neighbor list
-                let res = 
-                // skip_if_no_lower_bound!(
-                    binned_atoms
-                    .binary_search_by(|&(x, _)| {
-                         if x == cell_index{
-                            return Ordering::Equal;
-                        }else if x < cell_index {
-                            return Ordering::Less;
-                        } else{
-                            return Ordering::Greater;
-                        }
-                    });
-
-                    let cell:(i32,i32) = match res{
-                        Ok(val) => binned_atoms[val],
-                        Err(_) => continue,
-                    };
+                let cell: (i32, i32) = match res {
+                    Ok(val) => binned_atoms[val],
+                    Err(_) => continue,
+                };
                 // );
 
                 // let cell: (i32, i32) = (5,20);//binned_atoms[res];
 
                 println!("lower_bound cell: {:?}", cell);
-                println!("binned_atoms.end() quasi: {:?}",binned_atoms[0]);
+                println!("binned_atoms.end() quasi: {:?}", binned_atoms[0]);
 
-                // if cell == binned_atoms[0] || 
+                // if cell == binned_atoms[0] ||
                 if cell.0 != cell_index {
                     println!("CONTINUE --- cell == *binned_atoms.last().unwrap() || cell.0 != cell_index");
                     continue;
                 }
                 let mut count = 0;
-                    println!("sorted_atom_indices: {:?}",sorted_atom_indices);
-                    let mut j = cell.1 as usize;
-                        println!("j before while : {}",j);
-                    while j < atom_to_cell.len()
-                        && atom_to_cell[sorted_atom_indices[j]] == cell_index
-                    {
-                        println!("j: {}",j);
-                        let neighi = sorted_atom_indices[j];
-                        println!("inside while loop: index j: {}; neighi=sorted_atom_indices: {}",j, neighi);
-                        if neighi == i {
-                            println!("CONTINUE --- neighi==i (inside while)");
-                            count +=1;
-                            // if count == 2{
-                                // println!("RETURN at neighi continue... ------------------------------------------------------------------------------------------");
-                            // return (self.seed.clone(),self.neighbors.clone());
-                            // }
-                            j+=1;
-                            continue;
-                        }
-                        let distance_vector = &atoms.positions.column(i).view()
-                            - &atoms.positions.column(neighi).view();
-                        println!("distance_vector: {:?}",distance_vector);
-                        let distance_sq = distance_vector.norm_l2().powi(2);
-                        println!("distance_sq: {}; cutoff_sq: {}",distance_sq,cutoff_sq);
-
-                        if distance_sq <= cutoff_sq {
-                            if n >= self.neighbors.len() {
-                                self.neighbors.conservative_resize(Dim(2 * self.neighbors.len()));
-                            }
-                            println!("neighbors[{}]={}",n,neighi);
-                            self.neighbors[n] = neighi as i32;
-                            n+=1;
-                        }
-
+                println!("sorted_atom_indices: {:?}", sorted_atom_indices);
+                let mut j = cell.1 as usize;
+                println!("j before while : {}", j);
+                while j < atom_to_cell.len() && atom_to_cell[sorted_atom_indices[j]] == cell_index {
+                    println!("j: {}", j);
+                    let neighi = sorted_atom_indices[j];
+                    println!(
+                        "inside while loop: index j: {}; neighi=sorted_atom_indices: {}",
+                        j, neighi
+                    );
+                    if neighi == i {
+                        println!("CONTINUE --- neighi==i (inside while)");
+                        count += 1;
+                        // if count == 2{
+                        // println!("RETURN at neighi continue... ------------------------------------------------------------------------------------------");
+                        // return (self.seed.clone(),self.neighbors.clone());
+                        // }
                         j += 1;
+                        continue;
                     }
-                    println!("Outside while loop-----");
+                    let distance_vector =
+                        &atoms.positions.column(i).view() - &atoms.positions.column(neighi).view();
+                    println!("distance_vector: {:?}", distance_vector);
+                    let distance_sq = distance_vector.norm_l2().powi(2);
+                    println!("distance_sq: {}; cutoff_sq: {}", distance_sq, cutoff_sq);
+
+                    if distance_sq <= cutoff_sq {
+                        if n >= self.neighbors.len() {
+                            self.neighbors
+                                .conservative_resize(Dim(2 * self.neighbors.len()));
+                        }
+                        println!("!!! neighbors[{}]={}", n, neighi);
+                        self.neighbors[n] = neighi as i32;
+                        n += 1;
+                    }
+
+                    j += 1;
+                }
+                println!("Outside while loop-----");
             }
         }
         self.seed[atoms.positions.shape()[1]] = n as i32;
         self.neighbors.conservative_resize(Dim(n));
-        return (self.seed.clone(),self.neighbors.clone());
+        return (self.seed.clone(), self.neighbors.clone());
         // return (Array1::from_elem(5, 0), Array1::from_elem(5, 0));
     }
 
-    pub fn nb_total_neighbors(&self)-> i32{
-        return self.seed[self.seed.len()-1];
+    pub fn nb_total_neighbors(&self) -> i32 {
+        return self.seed[self.seed.len() - 1];
     }
 
-    pub fn nb_neighbors_of_atom(&self, i: usize)-> i32{
-        assert!(i<self.seed.len());
-        return self.seed[i+1]-self.seed[i];
+    pub fn nb_neighbors_of_atom(&self, i: usize) -> i32 {
+        assert!(i < self.seed.len());
+        return self.seed[i + 1] - self.seed[i];
     }
 
     fn coordinate_to_index_from_array(
@@ -308,12 +302,8 @@ let cell_test = binned_atoms[binned_atoms
 #[cfg(test)]
 mod tests {
     use crate::md_implementation::atoms::Atoms;
-    use googletest::{assert_that, matchers::near, verify_that};
     use itertools::assert_equal;
-    use ndarray::{Array1,Array2, s};
-    use ndarray_rand::rand::SeedableRng;
-    use ndarray_rand::{rand_distr::Uniform, RandomExt};
-    use rand_isaac::isaac64::Isaac64Rng;
+    use ndarray::{s, Array1, Array2};
 
     use super::NeighborList;
 
@@ -329,21 +319,32 @@ mod tests {
         let mut neighbor_list: NeighborList = NeighborList::new();
         let (seed, neighbors) = neighbor_list.update(atoms, 1.5);
 
-        assert_eq!(neighbor_list.nb_total_neighbors(),10);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(0),3);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(1),3);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(2),2);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(3),2);
+        assert_eq!(neighbor_list.nb_total_neighbors(), 10);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 2);
 
-        // println!("neighbors: {:?}; seed[0]: {}, seed[1]: {}\nslice: {:?}",neighbors, seed[0],seed[1], neighbors.slice(s![seed[0]..seed[1]]));
-        assert_equal(neighbors.slice(s![seed[0]..seed[1]]).into_owned(), Array1::<i32>::from_vec(vec![3,1,2]));
-        assert_equal(neighbors.slice(s![seed[1]..seed[2]]).into_owned(), Array1::<i32>::from_vec(vec![3,0,2]));
-        assert_equal(neighbors.slice(s![seed[2]..seed[3]]).into_owned(), Array1::<i32>::from_vec(vec![0,1]));
-        assert_equal(neighbors.slice(s![seed[3]..seed[4]]).into_owned(), Array1::<i32>::from_vec(vec![0,1]));
+        assert_equal(
+            neighbors.slice(s![seed[0]..seed[1]]).into_owned(),
+            Array1::<i32>::from_vec(vec![3, 1, 2]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[1]..seed[2]]).into_owned(),
+            Array1::<i32>::from_vec(vec![3, 0, 2]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[2]..seed[3]]).into_owned(),
+            Array1::<i32>::from_vec(vec![0, 1]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[3]..seed[4]]).into_owned(),
+            Array1::<i32>::from_vec(vec![0, 1]),
+        );
     }
 
     #[test]
-    fn test_neighbor_list_3_atoms_first_atom_has_no_neighbor() {
+    fn test_neighbor_list_4_atoms_first_atom_has_no_neighbor() {
         let mut atoms = Atoms::new(4);
         let new_positions = vec![0.0, 7.0, 0.0, 0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
 
@@ -354,16 +355,19 @@ mod tests {
         let mut neighbor_list: NeighborList = NeighborList::new();
         let (seed, neighbors) = neighbor_list.update(atoms, 5.0);
 
-        println!("neighbors: {:?}",neighbors);
+        println!("neighbors: {:?}", neighbors);
 
-        assert_eq!(neighbor_list.nb_total_neighbors(),2);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(0),0);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(1),0);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(2),1);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(3),1);
+        assert_eq!(neighbor_list.nb_total_neighbors(), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 1);
+
+        assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0, 0, 0, 1, 2]));
+        assert_equal(neighbors.clone(), Array1::<i32>::from_vec(vec![3, 2]));
     }
 
-#[test]
+    #[test]
     fn test_neighbor_list_3_atoms_last_atom_has_no_neighbor() {
         let mut atoms = Atoms::new(3);
         let new_positions = vec![0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
@@ -375,10 +379,31 @@ mod tests {
         let mut neighbor_list: NeighborList = NeighborList::new();
         let (seed, neighbors) = neighbor_list.update(atoms, 5.0);
 
-        assert_eq!(neighbor_list.nb_total_neighbors(),2);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(0),1);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(1),1);
-        assert_eq!(neighbor_list.nb_neighbors_of_atom(2),0);
+        assert_eq!(neighbor_list.nb_total_neighbors(), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
+    }
+
+    #[test]
+    fn test_neighbor_list_4_atoms_first_atoms_have_no_neighbor() {
+        let mut atoms = Atoms::new(4);
+        let new_positions = vec![0.0, 7.0, 0.0, 0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
+
+        let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
+            .expect("Failed to create new positions array");
+        atoms.positions.assign(&new_positions_arr);
+
+        let mut neighbor_list: NeighborList = NeighborList::new();
+        let (seed, neighbors) = neighbor_list.update(atoms, 0.5);
+
+        println!("neighbors: {:?}", neighbors);
+
+        assert_eq!(neighbor_list.nb_total_neighbors(), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 0);
     }
 }
 

@@ -75,8 +75,6 @@ where
         let new_len = new_shape[0];
         let old_len = self.len();
 
-        println!("old_len: {}", old_len);
-        println!("new_len: {}", new_len);
         let mut new_array = Array1::zeros(new_len);
 
         let min_len = old_len.min(new_len);
@@ -85,72 +83,6 @@ where
             new_array[i] = self[i] as i32;
         }
 
-        // println!("Before resize:\n{:?}", self);
         *self = new_array.to_owned().into();
-        // println!("After resize:\n{:?}", self);
     }
 }
-
-impl<S> ArrayExt<Ix2> for ArrayBase<S, Ix2>
-where
-    S: DataMut<Elem = i32>,
-    ArrayBase<S, Dim<[usize; 2]>>: From<ArrayBase<OwnedRepr<i32>, Dim<[usize; 2]>>>,
-{
-    fn conservative_resize(&mut self, new_shape: Ix2) {
-        let (new_rows, new_cols) = (new_shape[0], new_shape[1]);
-        let (old_rows, old_cols) = self.dim();
-
-        let mut new_array = Array2::zeros((new_rows, new_cols));
-
-        let min_rows = old_rows.min(new_rows);
-        let min_cols = old_cols.min(new_cols);
-
-        for i in 0..min_rows {
-            for j in 0..min_cols {
-                new_array[(i, j)] = self[(i, j)] as i32;
-            }
-        }
-
-        println!("Before resize:\n{:?}", self);
-        *self = ArrayBase::from(new_array);
-        println!("After resize:\n{:?}", self);
-    }
-}
-
-/*
-
-trait ArrayExt
-{
-    fn conservativeResize(&mut self,  new_shape: D);
-}
-// impl ArrayExt for Array2<f64> {
-//     fn conservativeResize(&mut self, new_rows_cols: (usize, usize)){
-//         if self.ncols()==new_rows_cols.0 && self.nrows() == new_rows_cols.1 {
-//             return;
-//         }
-//         let mut vec = Array2::zeros(new_rows_cols);
-//         vec.assign(self);
-
-impl<S, D> ArrayExt for ArrayBase<S, D>
-where
-    S: DataMut<Elem = f64>,
-    D: Dimension,
-{
-    fn conservativeResize(&mut self, new_shape: D) {
-
-
-
-    }
-}
-*/
-// impl<T: Zero> ArrayExt for ndarray::ArrayBase<S,D>
-//     {
-//     fn conservativeResize(&mut self, new_rows_cols: (usize, usize)){
-//         if self.ncols()==new_rows_cols.0 && self.nrows() == new_rows_cols.1 {
-//             return;
-//         }
-//         let mut vec = Array2::zeros(new_rows_cols);
-//         vec.assign(self);
-//     }
-
-// }

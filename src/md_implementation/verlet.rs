@@ -51,11 +51,8 @@ mod tests {
         let mut atoms = Atoms::new(usize::try_from(nb_atoms).unwrap());
 
         atoms.forces = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
-        println!("before -- forces: {:?}", &atoms.forces);
         atoms.positions = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
-        println!("before -- positions: {:?}", &atoms.positions);
         atoms.velocities = Array::random((3, nb_atoms), Uniform::new(-1.0, 1.0));
-        println!("before -- velocities: {:?}", &atoms.velocities);
         atoms.masses = Array::ones(nb_atoms);
 
         let mut timestep: f64 = 1e-6;

@@ -1,7 +1,5 @@
 use ndarray::{Array1, Array2};
 
-//use ndarray::{ArrayBase, DataMut, Dimension, Ix1, Ix2};
-#[allow(warnings)]
 #[derive(Clone)]
 
 pub struct Atoms {
@@ -51,16 +49,9 @@ impl Atoms {
         }
     }
 
-    //pub fn resize(&mut self,new_num_elements:usize) {
-    //
-    //}
-
-    fn print_type_of<T>(_: &T) {
-        println!("type printing: {}", std::any::type_name::<T>())
-    }
 }
 
-use ndarray::{ArrayBase, DataMut, Dim, Ix1, Ix2, OwnedRepr};
+use ndarray::{ArrayBase, DataMut, Dim, Ix1, OwnedRepr};
 
 pub trait ArrayExt<D> {
     fn conservative_resize(&mut self, new_shape: D);

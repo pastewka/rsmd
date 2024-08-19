@@ -5,7 +5,7 @@ use std::io::{BufRead, Write};
 
 pub fn read_xyz(file_path: String) -> Result<Atoms, io::Error> {
     let file = fs::File::open(file_path)?;
-    let mut reader = io::BufReader::new(file);
+    let reader = io::BufReader::new(file);
     return read_xyz_from_buffer(reader);
 }
 
@@ -206,9 +206,6 @@ mod tests {
         assert_eq!(1.01327, atoms.velocities[[0, 53]]);
         assert_eq!(-1.0644, atoms.velocities[[1, 53]]);
         assert_eq!(-0.811473, atoms.velocities[[2, 53]]);
-    }
-    fn get_type_of<T>(_: &T) -> &'static str {
-        return std::any::type_name::<T>();
     }
 
     #[test]

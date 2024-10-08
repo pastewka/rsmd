@@ -48,7 +48,6 @@ impl Atoms {
             self.velocities[[2, i]] = vz_vec[i];
         }
     }
-
 }
 
 use ndarray::{ArrayBase, DataMut, Dim, Ix1, OwnedRepr};

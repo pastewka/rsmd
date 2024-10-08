@@ -52,42 +52,45 @@ fn spread(v: u128) -> u128 {
     return value;
 }
 
-pub fn morton_encode_position(x: f64, y: f64, z: f64) -> (u128, (u8, u128), (u8, u128)) {
-    let mut y_low_bytes: u128 = spread(f64_to_u128_order_preserving(y));
-    let y_high_byte: u8 = (y_low_bytes & 0x80000000000000000000000000000000 >> 127)
-        .try_into()
-        .unwrap();
-    println!("{:b}", y_low_bytes);
+pub fn morton_encode_position(x: f64, y: f64, z: f64) -> (u128, u128, u128) {
+    let a = spread(f64_to_u128_order_preserving(x));
+    let mut b = (spread(f64_to_u128_order_preserving(y)));
+    b = b << 1;
+    let mut c = (spread(f64_to_u128_order_preserving(z)));
+    c = c << 1;
+    c = c << 1;
+    return (a, b, c);
+}
 
-    y_low_bytes <<= 1;
-    println!("{:b}", y_low_bytes);
+pub fn insertion_sort(data: &mut Vec<((u128, u128, u128), usize)>) {
+    for i in 1..data.len() {
+        let mut j = i;
+        let current = data[i];
 
-    let mut z_low_bytes: u128 = spread(f64_to_u128_order_preserving(z));
-    println!("z_low_bytes: {:b}", z_low_bytes);
-    let z_high_byte: u8 = (z_low_bytes & 0xC0000000000000000000000000000000u128 >> 126)
-        .try_into()
-        .unwrap();
+        // Compare current key with the keys in the sorted portion (left of index i)
+        // Shift elements to the right until correct position for `current`
+        while j > 0 && data[j - 1].0 > current.0 {
+            data[j] = data[j - 1]; // Shift element to the right
+            j -= 1;
+        }
 
-    println!("z_low_bytes: {:b}", z_low_bytes);
-    z_low_bytes <<= 2;
-    println!("z_low_bytes: {:b}", z_low_bytes);
-
-    return (
-        spread(f64_to_u128_order_preserving(x)),
-        (y_high_byte, y_low_bytes),
-        (z_high_byte, z_low_bytes),
-    );
+        // Insert `current` at its correct position
+        data[j] = current;
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::md_implementation::atoms::Atoms;
     use crate::md_implementation::neighbors_z::{
-        f64_to_u128_order_preserving, morton_encode_position,
+        f64_to_u128_order_preserving, insertion_sort, morton_encode_position,
     };
-    use itertools::Itertools;
     use ndarray::{Array2, Axis};
+    use num::BigUint;
+    use num::One;
     use std::vec::Vec;
+
+    use super::spread;
 
     #[test]
     fn test_neighbors_z_norm_and_scale() {
@@ -115,21 +118,245 @@ mod tests {
     }
 
     #[test]
-    fn test_neighbors_z_morton_encode() {
+    fn test_insertion_sort() {
+        let mut map = vec![
+            ((300, 2, 1), 0),
+            ((300, 2, 0), 1),
+            ((100, 111111, 223), 2),
+            ((0, 2, 45), 3),
+            ((0, 0, u128::MAX), 4),
+        ];
+        insertion_sort(&mut map);
+
+        assert_eq!(map[0], ((0, 0, u128::MAX), 4));
+        assert_eq!(map[1], ((0, 2, 45), 3));
+        assert_eq!(map[2], ((100, 111111, 223), 2));
+        assert_eq!(map[3], ((300, 2, 0), 1));
+        assert_eq!(map[4], ((300, 2, 1), 0));
+    }
+
+    // use std::collections::BTreeSet;
+    // #[test]
+    // fn test_neighbors_z_morton_encode_distinct_positions() {
+    //     fn has_unique_elements<T>(iter: T) -> bool
+    //     where
+    //         T: IntoIterator,
+    //         T::Item: Ord,
+    //     {
+    //         let mut uniq = BTreeSet::new();
+    //         iter.into_iter().all(move |x| uniq.insert(x))
+    //     }
+    //     let mut i = f64::MIN;
+    //     let mut j = f64::MIN;
+    //     let mut k = f64::MIN;
+    //     const LIMIT: f64 = f64::MAX - f64::EPSILON;
+    //     let mut morton_codes: Vec<(u128, u128, u128)> = Vec::new();
+
+    //     loop {
+    //         loop {
+    //             loop {
+    //                 morton_codes.push(morton_encode_position(i, j, k));
+    //                 if i <= LIMIT {
+    //                     i += f64::EPSILON;
+    //                 } else {
+    //                     break;
+    //                 }
+    //             }
+    //             if j <= LIMIT {
+    //                 j += f64::EPSILON;
+    //             } else {
+    //                 break;
+    //             }
+    //         }
+    //         if k <= LIMIT {
+    //             k += f64::EPSILON;
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //     assert!(has_unique_elements(morton_codes));
+    // }
+
+    #[test]
+    fn test_neighbors_z_morton_code_encode_distinct_positions() {
+        //TODO: random values for positions and check if morton code is different, given different positions..
+        //TODO: check if near positions have near morton code compared to more distant positions
+    }
+
+    #[test]
+    fn test_neighbors_z_morton_code_demonstrator_3x_21bits() {
+        fn morton_encode_21bits(data: u64) -> u64 {
+            let mut x = data & 0x1fffff; //only first 21 bits
+            x = (x | x << 32) & 0x1f00000000ffff; // shift left 32 bits, OR with self, and 00011111000000000000000000000000000000001111111111111111
+            x = (x | x << 16) & 0x1f0000ff0000ff; // shift left 32 bits, OR with self, and             00011111000000000000000011111111000000000000000011111111
+            x = (x | x << 8) & 0x100f00f00f00f00f; // shift left 32 bits, OR with self, and 0001000000001111000000001111000000001111000000001111000000000000
+            x = (x | x << 4) & 0x10c30c30c30c30c3; // shift left 32 bits, OR with self, and 0001000011000011000011000011000011000011000011000011000100000000
+            x = (x | x << 2) & 0x1249249249249249;
+            return x;
+        }
+
+        println!(
+            "--------------morton code demonstrator with 3x21bit uint values encoded to one 63 bit morton code--------------\n
+            binary 0x10000                                 {:b}",
+            0x10000
+        );
+        println!(
+            "binary 0x10000 | 0x10000 <<1:                 {:b}",
+            (0x10000 | 0x10000 << 1)
+        );
+
+        println!(
+            "binary 0x10000 | 0x10000 <<1 | 0x10000 <<2:  {:b}",
+            (0x10000 | 0x10000 << 1 | 0x10000 << 2)
+        );
+        /*
+                output
+        binary 0x10000                                 10000000000000000
+        binary 0x10000 | 0x10000 <<1:                 110000000000000000
+        binary 0x10000 | 0x10000 <<1 | 0x10000 <<2:  1110000000000000000
+
+                 */
+
+        println!(
+            "morton code separately from 0x1fffff for x, y and z: \n x: {:b};\n y: {:b};\n z: {:b}",
+            morton_encode_21bits(0x1fffff),
+            morton_encode_21bits(0x1fffff),
+            morton_encode_21bits(0x1fffff)
+        );
+        println!(
+            "morton code combined: morton(x):                                        {:b}",
+            morton_encode_21bits(0x1fffff)
+        );
+        println!(
+            "morton code combined: morton(x)| morton(y) <<1:                        {:b}",
+            morton_encode_21bits(0x1fffff) | morton_encode_21bits(0x1fffff) << 1
+        );
+        println!(
+            "morton code combined: morton(x)| morton(y) <<1 | morton(z) << 2:      {:b}",
+            morton_encode_21bits(0x1fffff)
+                | morton_encode_21bits(0x1fffff) << 1
+                | morton_encode_21bits(0x1fffff) << 2
+        );
+
+        assert_eq!(
+            morton_encode_21bits(0x1fffff)
+                | morton_encode_21bits(0x1fffff) << 1
+                | morton_encode_21bits(0x1fffff) << 2,
+            (2u64.pow(63) - 1)
+        );
+
+        /*output
+        morton code separately from 0x1fffff for x, y and z:
+         x: 1001001001001001001001001001001001001001001001001001001001001;
+         y: 1001001001001001001001001001001001001001001001001001001001001;
+         z: 1001001001001001001001001001001001001001001001001001001001001
+        morton code combined: morton(x):                                        1001001001001001001001001001001001001001001001001001001001001
+        morton code combined: morton(x)| morton(y) <<1:                        11011011011011011011011011011011011011011011011011011011011011
+        morton code combined: morton(x)| morton(y) <<1 | morton(z) << 2:      111111111111111111111111111111111111111111111111111111111111111 */
+        assert!(false);
+    }
+
+    #[test]
+    fn test_neighbors_z_morton_code_demonstrator_3x_128bits() {
+        fn combine_spread(x_spread: u128, y_spread: u128, z_spread: u128) -> BigUint {
+            let mut morton_code = BigUint::from(x_spread);
+            println!("morton code: 'spread(x)':\n {:#0x}", morton_code);
+
+            let mut m1 = BigUint::from(y_spread);
+            m1 <<= 1;
+            morton_code |= m1;
+            println!(
+                "morton code: 'spread(x) | spread(y)<<1':\n {:#0x}",
+                morton_code
+            );
+
+            let mut m2 = BigUint::from(z_spread);
+            m2 <<= 2;
+            morton_code |= m2;
+
+            println!(
+                "morton code 'spread(x) | spread(y)<<1 | spread(z) << 2':\n {:#0x}",
+                morton_code
+            );
+            return morton_code;
+        }
+
+        //test shifting with result of morton code being 0x8000...u128
+
+        let x: u128 = 2u128.pow(127);
+        println!("test shifting with result of morton code being 0x8000...u128");
+
+        let morton_code = combine_spread(x, x, x);
+
+        assert_eq!(
+            morton_code,
+            BigUint::from(2u8).pow(127) + BigUint::from(2u8).pow(128) + BigUint::from(2u8).pow(129)
+        );
+
+        //-----------------------------------------------------------------------------------------------------------------
+
+        //test with x,y,z being the maximum value of u128
+        let x: u128 = u128::MAX; // 2^128-1
+        let spread_x = spread(x);
+        println!(
+            "morton code from 2^128-1 for x, y and z: \n x: {:b};\n y: {:b};\n z: {:b}",
+            spread_x, spread_x, spread_x
+        );
+        let morton_code = combine_spread(spread_x, spread_x, spread_x);
+
+        let target_morton = BigUint::from(2u8).pow(384) - BigUint::one();
+        println!("target_morton: {}", target_morton);
+        assert_eq!(morton_code, target_morton);
+        assert!(false);
+    }
+
+    #[test]
+    fn test_neighbors_z_morton_code_encode_decode() {
+        // fn morton_decode(morton_code: (u128,u128,u128)) -> (u128,u128,u128){
+        // }
+    }
+
+    /*#[test]
+    fn test_neighbors_z_morton_encode_application() {
+        /*TODO: test and benchmark with BTreeMap
+            use std::collections::BTreeMap;
+        use itertools::Itertools;
+
+            let mut atoms = Atoms::new(4);
+            let new_positions = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0];
+            let mut handles:BTreeMap<(u128,u128,u128),usize> = BTreeMap::new(); //(key=morton_code, value=index_of_atom)
+
+            let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
+                .expect("Failed to create new positions array");
+            atoms.positions.assign(&new_positions_arr);
+            // let mut morton_codes: Vec<(u128, u128, u128)> = Vec::new();
+            for (i,pos) in atoms.positions.axis_iter(Axis(1)).enumerate() {
+                println!("Pos: {:?}", pos);
+                println!(
+                    "morton code: {:?}",
+                    morton_encode_position(pos[0], pos[1], pos[2])
+                );
+                handles.insert(morton_encode_position(pos[0], pos[1], pos[2]),i);
+            }
+            println!("sorted handles: {:?}",handles);
+            */
+
         let mut atoms = Atoms::new(4);
         let new_positions = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0];
-
         let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
-        let mut morton_codes: Vec<(u128, (u8, u128), (u8, u128))> = Vec::new();
-        for pos in atoms.positions.axis_iter(Axis(1)) {
-            println!("Pos: {:?}", pos);
-            morton_codes.push(morton_encode_position(pos[0], pos[1], pos[2]));
+
+        let mut handles: Vec<((u128, u128, u128), usize)> = Vec::new();
+
+        for (i, pos) in atoms.positions.axis_iter(Axis(1)).enumerate() {
+            handles.push((morton_encode_position(pos[0], pos[1], pos[2]), i));
         }
 
-        println!("morton codes of the 4 atoms: {:?}", morton_codes);
+        println!("handles unsorted: {:?}", handles);
+        insertion_sort(&mut handles);
+        println!("handles sorted: {:?}", handles);
 
         assert!(false);
-    }
+    }*/
 }

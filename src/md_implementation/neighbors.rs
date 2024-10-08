@@ -17,7 +17,7 @@ impl NeighborList {
         return Self { seed, neighbors };
     }
 
-//update neighbor list from the particle positions stored in the 'atoms' argument
+    //update neighbor list from the particle positions stored in the 'atoms' argument
     pub fn update(&mut self, atoms: Atoms, cutoff: f64) -> (Array1<i32>, Array1<i32>) {
         if atoms.positions.is_empty() {
             self.seed.conservative_resize(Dim(0));
@@ -25,10 +25,16 @@ impl NeighborList {
             return (self.seed.clone(), self.neighbors.clone());
         }
 
+        // Origin stores the bottom left corner of the enclosing rectangles and
+        // lengths the three Cartesian lengths.
+
         let mut origin = Array1::<f64>::from_elem(3, 3.0);
         let mut lengths = Array1::<f64>::from_elem(3, 3.0);
         let mut padding_lengths = Array1::<f64>::from_elem(3, 3.0);
 
+        // This is the number of cells/grid points that fit into the enclosing
+        // rectangle. The grid is such that a sphere of diameter *cutoff* fits into
+        // each cell.
         let mut nb_grid_points = Array1::<i32>::from_elem(3, 3);
 
         for (index_of_row, row) in atoms.positions.axis_iter(Axis(0)).enumerate() {
@@ -289,9 +295,8 @@ mod tests {
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 1);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
-        assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0,1,2,2]));
+        assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0, 1, 2, 2]));
         assert_equal(neighbors.clone(), Array1::<i32>::from_vec(vec![1, 0]));
-
     }
 
     #[test]

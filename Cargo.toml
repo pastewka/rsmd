@@ -24,8 +24,8 @@ criterion = {version = "0.5.1", features = ["html_reports"]}
 serde = "1.0.203"
 serde_json = "1.0.117"
 pprof = { version = "0.3", features = ["flamegraph"] }
-morton-encoding = "2.0.1"
-  
+rand = "0.8.5"
+
 [build]
 rustflags = ["-C", "target-cpu=native"]
 

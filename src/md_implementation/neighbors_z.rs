@@ -28,7 +28,11 @@
 // }
 use ndarray::array;
 use num::BigUint;
+use num::One;
+use num::PrimInt;
+use num::ToPrimitive;
 use num::Zero;
+use std::mem;
 pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
     let bits = value.to_bits(); // Get the raw bit pattern of the f32 (as u32)
 
@@ -97,74 +101,140 @@ fn spread(v: u128) -> BigUint {
     );
 
     println!(" value before masking: \n{:#0x}", v);
-    let mut value = BigUint::from(v);
 
-    // if value <= BigUint::from(u64::MAX) {
-    println!("(value << 64): \n{:#0x}", (value.clone() << 64));
-    value = (value.clone() | (value << 64)) & &mask_1;
-    println!("value after mask 1: \n{:#0x}", value);
-    println!("(value << 32): \n{:#0x}", (value.clone() << 32));
-    value = (value.clone() | (value << 32)) & &mask_2;
-    println!("value after mask 2: \n{:#0x}", value);
-    println!("(value << 16): \n{:#0x}", (value.clone() << 16));
-    value = (value.clone() | (value << 16)) & &mask_3;
-    println!("value after mask 3: \n{:#0x}", value);
-    println!("(value << 8): \n{:#0x}", (value.clone() << 8));
-    value = (value.clone() | (value << 8)) & &mask_4;
-    println!("value after mask 4: \n{:#0x}", value);
-    println!("(value << 4): \n{:#0x}", (value.clone() << 4));
-    value = (value.clone() | (value << 4)) & &mask_5;
-    println!("value after mask 5: \n{:#0x}", value);
-    println!("(value << 2): \n{:#0x}", (value.clone() << 2));
-    value = (value.clone() | (value << 2)) & &mask_6;
-    println!("value after mask 6: \n{:#0x}", value);
-    return value;
-    // } else {
-    //     //separate u128 into two u64s to interleave them and merge after again.
+    let original_amount_of_ones = v.count_ones();
+    let mut amount_to_shift_high = 0u32;
 
-    //     let mut low_sixty_four = BigUint::zero();
-    //     //bitmask low,high 64 bit
-    //     let sixty_four_masks = array![
-    //         BigUint::from(0x0000000000000000ffffffffffffffff_u128),
-    //         BigUint::from(0xffffffffffffffff0000000000000000_u128)
-    //     ];
+    if v <= u64::MAX.into() {
+        let mut value = BigUint::from(v);
+        let original_amount_of_bits = value.bits();
+        println!("original_amount_of_bits: {}", original_amount_of_bits);
 
-    //     for i in 0..2 {
-    //         println!("i: {}", i);
-    //         value &= &sixty_four_masks[i];
-    //         println!(" value after 64bit mask: \n{:#0x}", value);
+        // println!("(value << 128): \n{:#0x}", (value.clone() << 128));
+        // value = (value.clone() | (value << 128)) & mask_0;
+        // println!("value after mask 0: \n{:#0x}", value);
+        println!("(value << 64): \n{:#0x}", (value.clone() << 64));
+        value = (value.clone() | (value << 64)) & &mask_1;
+        println!("value after mask 1: \n{:#0x}", value);
+        println!("(value << 32): \n{:#0x}", (value.clone() << 32));
+        value = (value.clone() | (value << 32)) & &mask_2;
+        println!("value after mask 2: \n{:#0x}", value);
+        println!("(value << 16): \n{:#0x}", (value.clone() << 16));
+        value = (value.clone() | (value << 16)) & &mask_3;
+        println!("value after mask 3: \n{:#0x}", value);
+        println!("(value << 8): \n{:#0x}", (value.clone() << 8));
+        value = (value.clone() | (value << 8)) & &mask_4;
+        println!("value after mask 4: \n{:#0x}", value);
+        println!("(value << 4): \n{:#0x}", (value.clone() << 4));
+        value = (value.clone() | (value << 4)) & &mask_5;
+        println!("value after mask 5: \n{:#0x}", value);
+        println!("(value << 2): \n{:#0x}", (value.clone() << 2));
+        value = (value.clone() | (value << 2)) & &mask_6;
+        println!("value after mask 6: \n{:#0x}", value);
 
-    //         // value = (value.clone() | (value << 128)) & mask_0;
-    //         // println!("value after mask 0: \n{:#0x}", value);
+        // let mask = BigUint::from(2u8).pow(original_amount_of_bits as u32*3u32) - BigUint::one();
+        // println!("final mask: \n{:#0x}", mask);
+        // value &= mask;
+        // println!("value after final mask: \n{:#0x}", value);
+        assert!(value.count_ones() as u32 == original_amount_of_ones);
+        return value;
+    } else {
+        //separate u128 into two u64s to interleave them and merge after again.
 
-    //         // println!("(value << 64): {:#0x}", (value.clone() << 64));
-    //         // value = (value.clone() | (value << 64)) & &mask_1;
-    //         // println!("value after mask 1: \n{:#0x}", value);
-    //         println!("(value << 32): \n{:#0x}", (value.clone() << 32));
-    //         value = (value.clone() | (value << 32)) & &mask_2;
-    //         println!("value after mask 2: \n{:#0x}", value);
-    //         println!("(value << 16): \n{:#0x}", (value.clone() << 16));
-    //         value = (value.clone() | (value << 16)) & &mask_3;
-    //         println!("value after mask 3: \n{:#0x}", value);
-    //         println!("(value << 8): \n{:#0x}", (value.clone() << 8));
-    //         value = (value.clone() | (value << 8)) & &mask_4;
-    //         println!("value after mask 4: \n{:#0x}", value);
-    //         println!("(value << 4): \n{:#0x}", (value.clone() << 4));
-    //         value = (value.clone() | (value << 4)) & &mask_5;
-    //         println!("value after mask 5: \n{:#0x}", value);
-    //         println!("(value << 2): \n{:#0x}", (value.clone() << 2));
-    //         value = (value.clone() | (value << 2)) & &mask_6;
-    //         println!("value after mask 6: \n{:#0x}", value);
+        let mut low_sixty_four = BigUint::zero();
+        //bitmask low,high 64 bit
+        let sixty_four_masks = array![
+            BigUint::from(0x0000000000000000ffffffffffffffff_u128),
+            BigUint::from(0xffffffffffffffff0000000000000000_u128)
+        ];
+        let mut value = BigUint::from(v);
+        let original_amount_of_bits = value.bits();
+        println!("original_amount_of_bits: {}", original_amount_of_bits);
 
-    //         if i == 0 {
-    //             low_sixty_four = value.clone();
-    //         }
-    //     }
-    //     println!("low_sixty_four: \n{:#0x}; (value << 128) | low_sixty_four:\n{:#0x}",low_sixty_four.clone(),(value.clone() << 128) | low_sixty_four.clone());
-    //     value = (value << 128) | low_sixty_four;
+        for i in 0..2 {
+            println!("i: {}", i);
+            if i == 1 {
+                value = BigUint::from(v);
+            }
+            println!("64bit mask: \n{:#0x}", &sixty_four_masks[i]);
+            println!("value: \n{:#0x}", value);
 
-    //     return value;
-    // }
+            value &= &sixty_four_masks[i];
+            println!(" value after 64bit mask: \n{:#0x}", value);
+            if (i == 0) {
+                //encode also the leading zeros of the lower 64 bits, otherwise they would get truncated
+                amount_to_shift_high += value.to_u64().unwrap().leading_zeros() * 3;
+                println!(
+                    "amount_to_shift_high += value.to_u64().unwrap().leading_zeros() * 3: {}",
+                    amount_to_shift_high
+                );
+            }
+
+            if i == 1 {
+                value >>= 64;
+                println!(" value after shifting to correct value: \n{:#0x}", value);
+            }
+
+            println!("(value << 64): {:#0x}", (value.clone() << 64));
+            value = (value.clone() | (value << 64)) & &mask_1;
+            println!("value after mask 1: \n{:#0x}", value);
+            println!("(value << 32): \n{:#0x}", (value.clone() << 32));
+            value = (value.clone() | (value << 32)) & &mask_2;
+            println!("value after mask 2: \n{:#0x}", value);
+            println!("(value << 16): \n{:#0x}", (value.clone() << 16));
+            value = (value.clone() | (value << 16)) & &mask_3;
+            println!("value after mask 3: \n{:#0x}", value);
+            println!("(value << 8): \n{:#0x}", (value.clone() << 8));
+            value = (value.clone() | (value << 8)) & &mask_4;
+            println!("value after mask 4: \n{:#0x}", value);
+            println!("(value << 4): \n{:#0x}", (value.clone() << 4));
+            value = (value.clone() | (value << 4)) & &mask_5;
+            println!("value after mask 5: \n{:#0x}", value);
+            println!("(value << 2): \n{:#0x}", (value.clone() << 2));
+            value = (value.clone() | (value << 2)) & &mask_6;
+            println!("value after mask 6: \n{:#0x}", value);
+
+            if i == 0 {
+                low_sixty_four = value.clone();
+            }
+        }
+
+        amount_to_shift_high += low_sixty_four.bits() as u32 + 2;
+
+        println!(
+            "low_sixty_four.bits(): {}; amount_to_shift_high += low_sixty_four.bits(): {}",
+            low_sixty_four.bits(),
+            amount_to_shift_high
+        );
+        println!("value without shifting: \n{:#0x}", value);
+        println!("low_sixty_four: \n{:#0x}", low_sixty_four);
+
+        value = (value.clone() << amount_to_shift_high) | low_sixty_four;
+
+        println!(
+            "(value.clone() << amount_to_shift_high) | low_sixty_four: \n{:#0x}",
+            value
+        );
+
+        // if low_sixty_four.bits() != 0{
+        //     println!(
+        //         "low_sixty_four: \n{:#0x}; low_sixty_four.bits() + 2: \n{}; (value << (low_sixty_four.bits() + 2)): \n{:#0x}; (value << (low_sixty_four.bits() + 2))  | low_sixty_four:\n{:#0x}",
+        //         low_sixty_four.clone(), (low_sixty_four.bits() + 2), (value.clone() << (low_sixty_four.bits() + 2)),
+        //         (value.clone() << (low_sixty_four.bits() + 2)) | low_sixty_four.clone()
+        //     );
+        //     value = (value << (low_sixty_four.bits() + 2)) | low_sixty_four;
+        // }else{
+        //     println!(
+        //         "low_sixty_four: \n{:#0x}; low_sixty_four.bits() + 3: \n{}; (value << (low_sixty_four.bits() + 3)): \n{:#0x}; (value << (low_sixty_four.bits() + 3))  | low_sixty_four:\n{:#0x}",
+        //         low_sixty_four.clone(), (low_sixty_four.bits() + 3), (value.clone() << (low_sixty_four.bits() + 3)),
+        //         (value.clone() << (low_sixty_four.bits() + 3)) | low_sixty_four.clone()
+        //     );
+        //     value = (value << (low_sixty_four.bits() + 1 + 2)) | low_sixty_four;
+        // }
+
+        assert!(value.count_ones() as u32 == original_amount_of_ones);
+        return value;
+    }
 }
 
 pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -> BigUint {
@@ -273,7 +343,7 @@ mod tests {
                 }
             }
             println!(
-                "result after WHILE: {:b}; morton code: {:b}",
+                "morton decode result before swapping endianness: \n{:b}; morton code: \n{:b}",
                 result_array[dimension], modified_morton
             );
         }
@@ -290,6 +360,11 @@ mod tests {
             }
             result_array[i] = reversed_result << amount_to_shift_for_endianness_swap[i];
         }
+        println!(
+            "final demortanized results: \n{:b},\n{:b},\n{:b}",
+            result_array[0], result_array[1], result_array[2]
+        );
+
         return (
             result_array[0].clone(),
             result_array[1].clone(),
@@ -378,11 +453,26 @@ mod tests {
         assert_eq!(map[4], ((300, 2, 1), 0));
     }
 
-    #[test]
-    fn test_neighbors_z_morton_code_encode_distinct_positions() {
-        //TODO: random values for positions and check if morton code is different, given different positions..
-        //TODO: check if near positions have near morton code compared to more distant positions
-    }
+    //     #[test]
+    //     fn test_neighbors_z_morton_code_encode_distinct_positions() {
+    //         let x = 0b1011; // Example input: 11 in binary (this will be interleaved)
+    //     let morton = morton_code(x);
+    //     println!("Morton code: {:b}", morton);
+    //     assert!(false);
+    //         //TODO: random values for positions and check if morton code is different, given different positions..
+    //         //TODO: check if near positions have near morton code compared to more distant positions
+    //     }
+
+    //     use std::arch::x86_64::_pdep_u64;
+    //TODO: look after that pdep_u64
+    // fn morton_code(x: u64) -> u64 {
+    //     // The mask for 2-bit spacing: we interleave with 2 zeros between bits
+    //     let mask = 0b1001001001001001001001001001001001001001001001001001001001001001_u64;
+    //     unsafe {
+    //         // Use the `_pdep_u64` intrinsic to interleave the bits
+    //         _pdep_u64(x, mask)
+    //     }
+    // }
 
     fn morton_encode_21bits(data: u64) -> u64 {
         let mut x = data & 0x1fffff; //only first 21 bits
@@ -487,48 +577,48 @@ mod tests {
         assert_eq!(morton_code, should_be);
     }
 
-    #[test]
-    fn test_neighbors_z_morton_code_demonstrator_3x_128bits() {
-        //test with x,y,z being 2^127+2^126+2^125
-        let x: u128 = 2u128.pow(127) + 2u128.pow(126) + 2u128.pow(125);
+    // #[test]
+    // fn test_neighbors_z_morton_code_demonstrator_3x_128bits() {
+    //     //test with x,y,z being 2^127+2^126+2^125
+    //     let x: u128 = 2u128.pow(127) + 2u128.pow(126) + 2u128.pow(125);
 
-        let spread_x = spread(x);
-        println!(
-            "Spreaded 1D morton code from 2^127+2^126+2^125 is:\n{:#0x}\n\n",
-            spread_x
-        );
-        const SHIFT_AMOUNT: u64 = 62;
-        const X_SIZE: u64 = 128;
-        assert_eq!(spread_x.bits(), X_SIZE + SHIFT_AMOUNT);
+    //     let spread_x = spread(x);
+    //     println!(
+    //         "Spreaded 1D morton code from 2^127+2^126+2^125 is:\n{:#0x}\n\n",
+    //         spread_x
+    //     );
+    //     const SHIFT_AMOUNT: u64 = 62;
+    //     const X_SIZE: u64 = 128;
+    //     assert_eq!(spread_x.bits(), X_SIZE + SHIFT_AMOUNT);
 
-        assert!(check_interleaved_by_two(spread_x.clone()));
+    //     assert!(check_interleaved_by_two(spread_x.clone()));
 
-        let spread_z = BigUint::one();
+    //     let spread_z = BigUint::one();
 
-        let morton_code = combine_spread(spread_x.clone(), spread_x.clone(), spread_z.clone());
-        assert_eq!(
-            morton_code.bits(),
-            spread_x.bits() + spread_x.bits() + spread_z.bits() + SHIFT_AMOUNT * 3
-        );
-        println!("morton_code: {}", morton_code);
+    //     let morton_code = combine_spread(spread_x.clone(), spread_x.clone(), spread_z.clone());
+    //     assert_eq!(
+    //         morton_code.bits(),
+    //         spread_x.bits() + spread_x.bits() + spread_z.bits() + SHIFT_AMOUNT * 3
+    //     );
+    //     println!("morton_code: {}", morton_code);
 
-        // let (reverted_spread_x,reverted_spred_y,reverted_spread_z) = revert_3d_combined_morton(morton_code);
-        // assert_eq!(morton_decode(morton_code),(x.into(),x.into(),BigUint::one()));
+    //     // let (reverted_spread_x,reverted_spred_y,reverted_spread_z) = revert_3d_combined_morton(morton_code);
+    //     // assert_eq!(morton_decode(morton_code),(x.into(),x.into(),BigUint::one()));
 
-        //test with x,y,z being the maximum value of u128
-        let x: u128 = u128::MAX; // 2^128-1
-        let spread_x = spread(x);
-        println!(
-            "Spreaded 1D morton code from 2^128-1 for x, y and z: \n x: {:b};\n y: {:b};\n z: {:b}",
-            spread_x, spread_x, spread_x
-        );
-        let morton_code = combine_spread(spread_x.clone(), spread_x.clone(), spread_x.clone());
+    //     //test with x,y,z being the maximum value of u128
+    //     let x: u128 = u128::MAX; // 2^128-1
+    //     let spread_x = spread(x);
+    //     println!(
+    //         "Spreaded 1D morton code from 2^128-1 for x, y and z: \n x: {:b};\n y: {:b};\n z: {:b}",
+    //         spread_x, spread_x, spread_x
+    //     );
+    //     let morton_code = combine_spread(spread_x.clone(), spread_x.clone(), spread_x.clone());
 
-        let target_morton = BigUint::from(2u8).pow(384) - BigUint::one();
-        println!("target_morton: {}", target_morton);
-        assert_eq!(morton_code, target_morton);
-        assert!(false);
-    }
+    //     let target_morton = BigUint::from(2u8).pow(384) - BigUint::one();
+    //     println!("target_morton: {}", target_morton);
+    //     assert_eq!(morton_code, target_morton);
+    //     assert!(false);
+    // }
 
     #[test]
     fn test_morton_decode_3d() {
@@ -547,11 +637,12 @@ mod tests {
     }
 
     #[test]
-    fn test_morton_encode_decode_3d() {
+    fn test_morton_encode_decode_3d_u32_input() {
         let x = 0x2222u32;
         let y = 0x222222u32;
         let z = 0x88888888u32;
 
+        println!("\nSPREAD U32...");
         let x_spread = spread(x.into());
         let y_spread = spread(y.into());
         let z_spread = spread(z.into());
@@ -565,69 +656,126 @@ mod tests {
         assert_eq!(decoded.0, x.into());
         assert_eq!(decoded.1, y.into());
         assert_eq!(decoded.2, z.into());
-
-        let x = 0x2222222222222222222u128;
-        let y = 0x22222222222222222222u128;
-        let z = 0x888888888888888888888u128;
-
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-
-        // //test with big values
-        // let x = u128::MAX - 0x2222u128;
-        // let y = u128::MAX - 0x222222u128;
-        // let z = u128::MAX;
-
-        // let x_spread = spread(x.into());
-        // let y_spread = spread(y.into());
-        // let z_spread = spread(z.into());
-
-        // let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        // println!(
-        //     "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-        //     morton_code
-        // );
-        // let decoded = morton_decode_3d(morton_code);
-        // assert_eq!(decoded.0, x.into());
-        // assert_eq!(decoded.1, y.into());
-        // assert_eq!(decoded.2, z.into());
     }
 
-    // #[test]
-    // fn test_morton_encode_decode_3d_random() {
-    //     let mut rng = rand::thread_rng();
+    #[test]
+    fn test_morton_encode_decode_3d_u64_input() {
+        let x = 0x2222222222222222u64;
+        let y = 0x4444444444444444u64;
+        let z = 0x8888888888888888u64;
 
-    //     for _ in 0..100 {
-    //         let x = rng.gen::<u128>();
-    //         let y = rng.gen::<u128>();
-    //         let z = rng.gen::<u128>();
+        println!("\nSPREAD U64 ...");
+        let x_spread = spread(x.into());
+        let y_spread = spread(y.into());
+        let z_spread = spread(z.into());
 
-    //         let x_spread = spread(x.into());
-    //         let y_spread = spread(y.into());
-    //         let z_spread = spread(z.into());
+        let morton_code = combine_spread(x_spread, y_spread, z_spread);
+        println!(
+            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
+            morton_code
+        );
+        let decoded = morton_decode_3d(morton_code);
+        assert_eq!(decoded.0, x.into());
+        assert_eq!(decoded.1, y.into());
+        assert_eq!(decoded.2, z.into());
 
-    //         let morton_code = combine_spread(x_spread, y_spread, z_spread);
-    //         println!(
-    //             "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-    //             morton_code
-    //         );
-    //         let decoded = morton_decode_3d(morton_code);
-    //         assert_eq!(decoded.0, x.into());
-    //         assert_eq!(decoded.1, y.into());
-    //         assert_eq!(decoded.2, z.into());
-    //     }
-    // }
+        let x = 0xFFFFFFFFFFFFFFFFu64;
+        let y = u64::MAX - 0x4444444444444444u64;
+        let z = u64::MAX - 0x8888888888888888u64;
+
+        println!("\nSPREAD U64 big numbers ...");
+        let x_spread = spread(x.into());
+        let y_spread = spread(y.into());
+        let z_spread = spread(z.into());
+
+        let morton_code = combine_spread(x_spread, y_spread, z_spread);
+        println!(
+            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
+            morton_code
+        );
+        let decoded = morton_decode_3d(morton_code);
+        assert_eq!(decoded.0, x.into());
+        assert_eq!(decoded.1, y.into());
+        assert_eq!(decoded.2, z.into());
+        // assert!(false);
+    }
+
+    #[test]
+    fn test_morton_encode_decode_3d_u128_input() {
+        let x = u128::MAX;
+        let y = 0x2222_00000000_22222222u128;
+        let z = 0x0u128;
+
+        println!("\nSPREAD U128 ...");
+        let x_spread = spread(x.into());
+        let y_spread = spread(y.into());
+        let z_spread = spread(z.into());
+
+        let x_spread_amount_of_ones = x_spread.count_ones();
+        let y_spread_amount_of_ones = y_spread.count_ones();
+        let z_spread_amount_of_ones = z_spread.count_ones();
+
+        let morton_code = combine_spread(x_spread, y_spread, z_spread);
+
+        assert_eq!(
+            morton_code.count_ones(),
+            x_spread_amount_of_ones + y_spread_amount_of_ones + z_spread_amount_of_ones
+        );
+
+        println!(
+            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
+            morton_code
+        );
+        let decoded = morton_decode_3d(morton_code);
+
+        println!("decoded.1: {:b}", decoded.1);
+
+        assert_eq!(decoded.0, x.into());
+        assert_eq!(decoded.1, y.into());
+        assert_eq!(decoded.2, z.into());
+
+        //test with big values
+        let x = u128::MAX - 0x10000000000000000000000000000000u128;
+        let y = u128::MAX - 0x20000000000000000000000000000000u128;
+        let z = u128::MAX - 0x30000000000000000000000000000000u128;
+
+        let x_spread = spread(x.into());
+        let y_spread = spread(y.into());
+        let z_spread = spread(z.into());
+
+        let morton_code = combine_spread(x_spread, y_spread, z_spread);
+        println!(
+            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
+            morton_code
+        );
+        let decoded = morton_decode_3d(morton_code);
+        assert_eq!(decoded.0, x.into());
+        assert_eq!(decoded.1, y.into());
+        assert_eq!(decoded.2, z.into());
+
+        //test with random values
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+            let x = rng.gen::<u128>();
+            let y = rng.gen::<u128>();
+            let z = rng.gen::<u128>();
+
+            let x_spread = spread(x.into());
+            let y_spread = spread(y.into());
+            let z_spread = spread(z.into());
+
+            let morton_code = combine_spread(x_spread, y_spread, z_spread);
+            println!(
+                "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
+                morton_code
+            );
+            let decoded = morton_decode_3d(morton_code);
+            assert_eq!(decoded.0, x.into());
+            assert_eq!(decoded.1, y.into());
+            assert_eq!(decoded.2, z.into());
+        }
+    }
 
     /*#[test]
     fn test_neighbors_z_morton_encode_application() {

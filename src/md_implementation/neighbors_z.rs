@@ -1,4 +1,5 @@
 use crate::md_implementation::atoms::Atoms;
+use core::arch::x86_64::_pdep_u64;
 use itertools::iproduct;
 use ndarray::array;
 use ndarray::s;
@@ -8,7 +9,6 @@ use num::BigUint;
 use num::ToPrimitive;
 use num::Zero;
 use std::cmp::Ordering;
-use core::arch::x86_64::_pdep_u64;
 
 use super::atoms::ArrayExt;
 
@@ -271,36 +271,24 @@ pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
 }
 
 fn spread(v: u64) -> BigUint {
-
-    println!(" value before masking: \n{:#0x}", v);
-
     let original_amount_of_ones = v.count_ones();
+    let mut value = BigUint::from(v);
 
-        let mut value = BigUint::from(v);
-        
-        println!("value before pdep: {:#0x}",v);
-        let mask_low = 0x9249249249249249_u64;
-        println!("mask: {:#0x}",mask_low);
-        let mask_middle = 0x4924924924924924_u64;
-        println!("mask: {:#0x}",mask_middle);
-        let mask_high = 0x2492492492492492_u64;
-        println!("mask: {:#0x}",mask_high);
+    let mask_low = 0x9249249249249249_u64;
+    let mask_middle = 0x4924924924924924_u64;
+    let mask_high = 0x2492492492492492_u64;
 
-        let low_64 = unsafe { _pdep_u64(v as u64, mask_low) };
-        println!("low_64: {:#0x}",low_64);
-        println!("(v>>22): {:#0x}",(v>>22));
-        let middle_64 = unsafe { _pdep_u64((v>>22) as u64, mask_middle) };
-        println!("middle_64: {:#0x}",middle_64);
-        println!("(v>>42): {:#0x}",(v>>42));
-        let high_64 = unsafe { _pdep_u64((v>>43) as u64, mask_high) };
-        println!("high_64: {:#0x}",high_64);
+    let low_64 = unsafe { _pdep_u64(v as u64, mask_low) };
+    let middle_64 = unsafe { _pdep_u64((v >> 22) as u64, mask_middle) };
+    let high_64 = unsafe { _pdep_u64((v >> 43) as u64, mask_high) };
 
-        value = (BigUint::from(high_64) << 128) | (BigUint::from(middle_64) << 64) | BigUint::from(low_64);
+    value =
+        (BigUint::from(high_64) << 128) | (BigUint::from(middle_64) << 64) | BigUint::from(low_64);
 
-        println!("value: {:#0x}",value);
+    println!("value: {:#0x}", value);
 
-        assert_eq!(value.count_ones() as u32, original_amount_of_ones);
-        return value;
+    assert_eq!(value.count_ones() as u32, original_amount_of_ones);
+    return value;
 }
 
 pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -> BigUint {
@@ -310,8 +298,7 @@ pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -
 }
 
 pub fn morton_encode_cell(cell_index: u64) -> BigUint {
-    //TODO: make all parameters only u64 not with into()
-    println!("cell_index: {:b}",cell_index);
+    println!("cell_index: {:b}", cell_index);
     return spread(cell_index);
 }
 
@@ -336,12 +323,11 @@ pub fn insertion_sort(data: &mut Vec<(BigUint, usize)>) {
 mod tests {
     use super::*;
     use itertools::assert_equal;
-    use ndarray::{array, Array2};
+    use ndarray::Array2;
     use num::BigUint;
     use num::One;
     use num::Zero;
     use rand::Rng;
-    use std::mem;
 
     #[test]
     fn test_neighbor_list_4_atoms() {
@@ -465,75 +451,63 @@ mod tests {
         return false;
     }
 
-    fn morton_decode_3d(morton_code: BigUint) -> (BigUint, BigUint, BigUint) {
+    fn morton_decode(morton_code: BigUint) -> BigUint {
         let mut b = BigUint::zero();
-        let mut result_array = array![BigUint::zero(), BigUint::zero(), BigUint::zero()];
-        let mut amount_to_shift_for_endianness_swap = array![0u32, 0u32, 0u32];
-        for dimension in 0..3 {
-            println!("dimension: {}", dimension);
+        let mut result = BigUint::zero();
+        let mut amount_to_shift_for_endianness_swap = 0u32;
 
-            let mut modified_morton = morton_code.clone();
-            modified_morton >>= dimension;
+        let mut modified_morton = morton_code.clone();
 
-            while modified_morton.bits() >= 4 {
-                let before = result_array[dimension].clone();
-                println!(
-                    "result before: {:b}; morton code: {:b}",
-                    before, modified_morton
-                );
-                if modified_morton.bit(0) {
-                    result_array[dimension] = (&result_array[dimension] << 1) | BigUint::one();
-                } else {
-                    result_array[dimension] = &result_array[dimension] << 1;
-                }
-                if result_array[dimension] == before {
-                    // need of shift when swapping endianness, because leading zeros get truncated
-                    amount_to_shift_for_endianness_swap[dimension] += 1;
-                }
-
-                modified_morton >>= 3;
-
-                println!(
-                    "result after: {:b}; morton code: {:b}",
-                    result_array[dimension], modified_morton
-                );
-                println!("modified_morton.bits(): {}", modified_morton.bits());
-            }
-            if modified_morton.bits() > 0 {
-                if modified_morton.bit(0) {
-                    result_array[dimension] = (&result_array[dimension] << 1) | BigUint::one();
-                } else {
-                    result_array[dimension] = &result_array[dimension] << 1;
-                }
-            }
+        while modified_morton.bits() >= 4 {
+            let before = result.clone();
             println!(
-                "morton decode result before swapping endianness: \n{:b}; morton code: \n{:b}",
-                result_array[dimension], modified_morton
+                "result before: {:b}; morton code: {:b}",
+                before, modified_morton
             );
-        }
-
-        for i in 0..result_array.len() {
-            let mut reversed_result = BigUint::zero();
-            while result_array[i].bits() > 0 {
-                if result_array[i].bit(0) {
-                    reversed_result = (&reversed_result << 1) | BigUint::one();
-                } else {
-                    reversed_result = &reversed_result << 1;
-                }
-                result_array[i] >>= 1;
+            if modified_morton.bit(0) {
+                result = (&result << 1) | BigUint::one();
+            } else {
+                result = &result << 1;
             }
-            result_array[i] = reversed_result << amount_to_shift_for_endianness_swap[i];
+            if result == before {
+                // need of shift when swapping endianness, because leading zeros get truncated
+                amount_to_shift_for_endianness_swap += 1;
+            }
+
+            modified_morton >>= 3;
+
+            println!(
+                "result after: {:b}; morton code: {:b}",
+                result, modified_morton
+            );
+            println!("modified_morton.bits(): {}", modified_morton.bits());
+        }
+        if modified_morton.bits() > 0 {
+            if modified_morton.bit(0) {
+                result = (&result << 1) | BigUint::one();
+            } else {
+                result = &result << 1;
+            }
         }
         println!(
-            "final demortanized results: \n{:b},\n{:b},\n{:b}",
-            result_array[0], result_array[1], result_array[2]
+            "morton decode result before swapping endianness: \n{:b}; morton code: \n{:b}",
+            result, modified_morton
         );
 
-        return (
-            result_array[0].clone(),
-            result_array[1].clone(),
-            result_array[2].clone(),
-        );
+        let mut reversed_result = BigUint::zero();
+        while result.bits() > 0 {
+            if result.bit(0) {
+                reversed_result = (&reversed_result << 1) | BigUint::one();
+            } else {
+                reversed_result = &reversed_result << 1;
+            }
+            result >>= 1;
+        }
+        result = reversed_result << amount_to_shift_for_endianness_swap;
+
+        println!("final demortanized result: \n{:b}", result);
+
+        return result;
     }
 
     #[test]
@@ -601,27 +575,6 @@ mod tests {
     }
 
     #[test]
-    fn test_f64_to_u128_order_preserving() {
-        let testvalues = [
-            (f64::MIN, f64::MIN + f64::EPSILON),
-            (f64::MIN + 1.0, f64::MIN + 1.0 + f64::EPSILON),
-            (0.0f64 - f64::EPSILON, 0.0f64),
-            (0.0f64, 0.0f64 + f64::EPSILON),
-            (10002323f64, 10002323f64 + f64::EPSILON),
-            (f64::MAX - f64::EPSILON, f64::MAX),
-            (f64::MIN, f64::MAX),
-        ];
-
-        for (i, j) in testvalues {
-            assert!(
-                ((i >= j) && (f64_to_u128_order_preserving(i) >= f64_to_u128_order_preserving(j)))
-                    || ((i < j)
-                        && (f64_to_u128_order_preserving(i) < f64_to_u128_order_preserving(j)))
-            );
-        }
-    }
-
-    #[test]
     fn test_insertion_sort() {
         let mut map = vec![
             (BigUint::from(u128::MAX).pow(2), 0),
@@ -640,105 +593,25 @@ mod tests {
     }
 
     #[test]
-    fn test_morton_decode_3d() {
-        let morton_code = BigUint::from(0b10011011u128);
-        let decoded_result = morton_decode_3d(morton_code);
+    fn test_morton_decode() {
+        let morton_code = BigUint::from(0b1_001_001_000_000_001u64);
+        let decoded_result = morton_decode(morton_code);
 
-        assert_eq!(decoded_result.0, BigUint::from(0b011u128));
-        assert_eq!(decoded_result.1, BigUint::from(0b111u8));
-        assert_eq!(decoded_result.2, BigUint::from(0b0u8));
-
-        let morton_code = BigUint::from(0b101101010111010111u128);
-        let decoded_result = morton_decode_3d(morton_code);
-        assert_eq!(decoded_result.0, BigUint::from(0b110101u8));
-        assert_eq!(decoded_result.1, BigUint::from(0b1111u8));
-        assert_eq!(decoded_result.2, BigUint::from(0b110101u8));
+        assert_eq!(decoded_result, BigUint::from(0b111001u128));
     }
 
     #[test]
-    fn test_morton_encode_decode_3d_u32_input() {
-        let x = 0x2222u32;
-        let y = 0x222222u32;
-        let z = 0x88888888u32;
+    fn test_morton_encode_decode_cell() {
+        let mut rng = rand::thread_rng();
 
-        println!("\nSPREAD U32...");
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-    }
-
-    #[test]
-    fn test_morton_encode_decode_3d_u64_input() {
-        let x = 0x2222222222222222u64;
-        let y = 0x4444444444444444u64;
-        let z = 0x8888888888888888u64;
-
-        println!("\nSPREAD U64 ...");
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-
-        let x = 0xFFFFFFFFFFFFFFFFu64;
-        let y = u64::MAX - 0x4444444444444444u64;
-        let z = u64::MAX - 0x8888888888888888u64;
-
-        println!("\nSPREAD U64 big numbers ...");
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-    }
-    // #[test]
-    // fn test_neighbors_z_morton_encode_application() {
-    /*TODO: test and benchmark with BTreeMap
-        use std::collections::BTreeMap;
-    use itertools::Itertools;
-
-        let mut atoms = Atoms::new(4);
-        let new_positions = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0];
-        let mut handles:BTreeMap<(u128,u128,u128),usize> = BTreeMap::new(); //(key=morton_code, value=index_of_atom)
-
-        let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
-            .expect("Failed to create new positions array");
-        atoms.positions.assign(&new_positions_arr);
-        // let mut morton_codes: Vec<(u128, u128, u128)> = Vec::new();
-        for (i,pos) in atoms.positions.axis_iter(Axis(1)).enumerate() {
-            println!("Pos: {:?}", pos);
-            println!(
-                "morton code: {:?}",
-                morton_encode_position(pos[0], pos[1], pos[2])
+        for _ in 0..100 {
+            let x = rng.gen::<i32>();
+            let spread = spread(NeighborListZ::i32_to_u64_order_preserving(x));
+            println!("x: {:#0x}; spread(x): {:#0x}", x, spread);
+            assert_eq!(
+                NeighborListZ::i32_to_u64_order_preserving(x),
+                morton_decode(spread).to_u64().unwrap()
             );
-            handles.insert(morton_encode_position(pos[0], pos[1], pos[2]),i);
         }
-        println!("sorted handles: {:?}",handles);
-        */
+    }
 }

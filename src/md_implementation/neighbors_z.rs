@@ -1,19 +1,16 @@
-use super::atoms;
 use crate::md_implementation::atoms::Atoms;
 use itertools::iproduct;
 use ndarray::array;
+use ndarray::s;
 use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
 use ndarray_linalg::norm::Norm;
-use num::traits::ToBytes;
 use num::BigUint;
-use num::One;
-use num::PrimInt;
 use num::ToPrimitive;
 use num::Zero;
 use std::cmp::Ordering;
-use std::mem;
 
 use super::atoms::ArrayExt;
+
 pub struct NeighborListZ {
     seed: Array1<i32>,
     neighbors: Array1<i32>,
@@ -27,7 +24,12 @@ impl NeighborListZ {
     }
 
     //update neighbor list from the particle positions stored in the 'atoms' argument
-    pub fn update(&mut self, atoms: Atoms, cutoff: f64) -> (Array1<i32>, Array1<i32>) {
+    pub fn update(
+        &mut self,
+        mut atoms: Atoms,
+        cutoff: f64,
+        sort_atoms_array: bool,
+    ) -> (Array1<i32>, Array1<i32>) {
         if atoms.positions.is_empty() {
             self.seed.conservative_resize(Dim(0));
             self.neighbors.conservative_resize(Dim(0));
@@ -103,16 +105,34 @@ impl NeighborListZ {
         println!("atom_to_cell: {:?}", atom_to_cell);
 
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
+        use std::any::type_name;
+        fn print_type<T>(_: &T) {
+            println!("{}", type_name::<T>());
+        }
         let mut handles: Vec<(BigUint, usize)> = Vec::new();
+        let nb_atoms = atoms.positions.shape()[1];
 
-        for i in 0..atoms.positions.shape()[1] {
+        for i in 0..nb_atoms {
             handles.push((
-                morton_encode_cell(Self::i32_to_u64_order_preserving(atom_to_cell[i])),
+                BigUint::from(morton_encode_cell(Self::i32_to_u64_order_preserving(
+                    atom_to_cell[i],
+                ))),
                 i,
             ));
         }
 
-        println!("handles: {:?}", handles); //CONTINUE IMPLEMENTATION HERE
+        insertion_sort(&mut handles);
+
+        //store atoms in memory according to handle order
+        if sort_atoms_array {
+            let mut positions = Array2::zeros((3, nb_atoms));
+            for (new_index, (_, original_index)) in handles.iter().enumerate() {
+                positions
+                    .slice_mut(s![.., new_index])
+                    .assign(&atoms.positions.slice(s![.., *original_index]));
+            }
+            atoms.positions.assign(&positions);
+        }
 
         let mut sorted_atom_indices =
             Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
@@ -132,9 +152,9 @@ impl NeighborListZ {
             }
         }
 
-        self.seed
-            .conservative_resize(Dim(atoms.positions.shape()[1] + 1));
+        self.seed.conservative_resize(Dim(nb_atoms + 1));
 
+        // Constructing index shift vectors to look for neighboring cells
         let mut neighborhood = Array2::<i32>::zeros((3, 27));
 
         // Fill the array with combinations of x, y, z in the range -1 to 1
@@ -146,7 +166,7 @@ impl NeighborListZ {
 
         let mut n: usize = 0;
         let cutoff_sq = cutoff * cutoff;
-        for i in 0..atoms.positions.shape()[1] {
+        for i in 0..nb_atoms {
             self.seed[i] = n as i32;
 
             let cell_coord = (&nb_grid_points.mapv(|nb_grid_pt| nb_grid_pt as f64)
@@ -218,7 +238,7 @@ impl NeighborListZ {
                 }
             }
         }
-        self.seed[atoms.positions.shape()[1]] = n as i32;
+        self.seed[nb_atoms] = n as i32;
         self.neighbors.conservative_resize(Dim(n));
         return (self.seed.clone(), self.neighbors.clone());
     }
@@ -237,29 +257,19 @@ impl NeighborListZ {
     }
 
     fn i32_to_u64_order_preserving(value: i32) -> u64 {
-        // let mut bits = value.to_be();// Get the raw bit pattern of the i32 (as u32)
-        // println!("value: {}",value);
-
-        // println!("bits: {:b}",bits);
-        // // If the number is negative, we flip all the bits to invert the order.
-        // // If the number is positive, we flip only the sign bit to maintain order.
-        // if value < 0 {
-        //     // bits <<= size_of::<u32>();
-        //     bits = !bits +1;
-        //     println!("u64::from_be(!bits as u64): {:b}",u64::from_be(bits as u64));
         return value.wrapping_sub(i32::MIN) as u64; // For negative numbers: invert all bits
     }
 }
 
 pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
-    let bits = value.to_bits(); // Get the raw bit pattern of the f32 (as u32)
+    let bits = value.to_bits(); // Get the raw bit pattern of the f64 (as u128)
 
     // If the number is negative, we flip all the bits to invert the order.
     // If the number is positive, we flip only the sign bit to maintain order.
     if bits & 0x8000000000000000 != 0 {
         return !bits as u128; // For negative numbers: invert all bits
     } else {
-        return bits as u128 + 0x8000000000000000; // For positive numbers: flip the sign bit by adding 2^63
+        return bits as u128 + 0x8000000000000000; // For positive numbers: flip the sign bit
     }
 }
 
@@ -453,7 +463,8 @@ pub fn insertion_sort(data: &mut Vec<(BigUint, usize)>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::{array, Array2, Axis};
+    use itertools::assert_equal;
+    use ndarray::{array, Array2};
     use num::BigUint;
     use num::One;
     use num::Zero;
@@ -461,7 +472,7 @@ mod tests {
     use std::mem;
 
     #[test]
-    fn test_neighbor_list_update() {
+    fn test_neighbor_list_4_atoms() {
         let mut atoms = Atoms::new(4);
         let new_positions = vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0];
 
@@ -470,9 +481,95 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 1.5);
+        let (seed, neighbors) = neighbor_list.update(atoms, 1.5, false);
 
-        assert!(false);
+        assert_eq!(neighbor_list.nb_total_neighbors(), 10);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 2);
+
+        assert_equal(
+            neighbors.slice(s![seed[0]..seed[1]]).into_owned(),
+            Array1::<i32>::from_vec(vec![3, 1, 2]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[1]..seed[2]]).into_owned(),
+            Array1::<i32>::from_vec(vec![3, 0, 2]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[2]..seed[3]]).into_owned(),
+            Array1::<i32>::from_vec(vec![0, 1]),
+        );
+        assert_equal(
+            neighbors.slice(s![seed[3]..seed[4]]).into_owned(),
+            Array1::<i32>::from_vec(vec![0, 1]),
+        );
+    }
+
+    #[test]
+    fn test_neighbor_list_4_atoms_first_atom_has_no_neighbor() {
+        let mut atoms = Atoms::new(4);
+        let new_positions = vec![0.0, 7.0, 0.0, 0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
+
+        let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
+            .expect("Failed to create new positions array");
+        atoms.positions.assign(&new_positions_arr);
+
+        let mut neighbor_list: NeighborListZ = NeighborListZ::new();
+        let (seed, neighbors) = neighbor_list.update(atoms, 5.0, false);
+
+        println!("neighbors: {:?}", neighbors);
+
+        assert_eq!(neighbor_list.nb_total_neighbors(), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 1);
+
+        assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0, 0, 0, 1, 2]));
+        assert_equal(neighbors.clone(), Array1::<i32>::from_vec(vec![3, 2]));
+    }
+
+    #[test]
+    fn test_neighbor_list_3_atoms_last_atom_has_no_neighbor() {
+        let mut atoms = Atoms::new(3);
+        let new_positions = vec![0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
+
+        let new_positions_arr = Array2::from_shape_vec((3, 3), new_positions)
+            .expect("Failed to create new positions array");
+        atoms.positions.assign(&new_positions_arr);
+
+        let mut neighbor_list: NeighborListZ = NeighborListZ::new();
+        let (seed, neighbors) = neighbor_list.update(atoms, 5.0, false);
+
+        assert_eq!(neighbor_list.nb_total_neighbors(), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 1);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
+        assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0, 1, 2, 2]));
+        assert_equal(neighbors.clone(), Array1::<i32>::from_vec(vec![1, 0]));
+    }
+
+    #[test]
+    fn test_neighbor_list_4_atoms_first_atoms_have_no_neighbor() {
+        let mut atoms = Atoms::new(4);
+        let new_positions = vec![0.0, 7.0, 0.0, 0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
+
+        let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
+            .expect("Failed to create new positions array");
+        atoms.positions.assign(&new_positions_arr);
+
+        let mut neighbor_list: NeighborListZ = NeighborListZ::new();
+        let (seed, neighbors) = neighbor_list.update(atoms, 0.5, false);
+
+        println!("neighbors: {:?}", neighbors);
+
+        assert_eq!(neighbor_list.nb_total_neighbors(), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 0);
     }
 
     fn check_interleaved_by_two(spread_value: BigUint) -> bool {

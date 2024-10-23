@@ -8,6 +8,7 @@ use num::BigUint;
 use num::ToPrimitive;
 use num::Zero;
 use std::cmp::Ordering;
+use core::arch::x86_64::_pdep_u64;
 
 use super::atoms::ArrayExt;
 
@@ -105,10 +106,6 @@ impl NeighborListZ {
         println!("atom_to_cell: {:?}", atom_to_cell);
 
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
-        use std::any::type_name;
-        fn print_type<T>(_: &T) {
-            println!("{}", type_name::<T>());
-        }
         let mut handles: Vec<(BigUint, usize)> = Vec::new();
         let nb_atoms = atoms.positions.shape()[1];
 
@@ -273,163 +270,37 @@ pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
     }
 }
 
-fn spread(v: u128) -> BigUint {
-    //bitmask ... 32 ones 64 zeros 32 ones
-    let mut mask_0 = BigUint::from(0x0000000000000000ffffffffffffffff_u128);
-    mask_0 <<= 128;
-    mask_0 += 0x0000000000000000ffffffffffffffff_u128;
-    mask_0 <<= 128;
-    mask_0 += 0x0000000000000000ffffffffffffffff_u128;
-
-    //bitmask ... 32 ones 64 zeros 32 ones
-    let mut mask_1 = BigUint::from(0x0000000000000000ffffffff00000000_u128);
-    mask_1 <<= 128;
-    mask_1 += 0x00000000ffffffff0000000000000000_u128;
-    mask_1 <<= 128;
-    mask_1 += 0xffffffff0000000000000000ffffffff_u128;
-
-    //bitmask 0b...11111111 11111111 00000000 00000000 00000000 00000000 11111111 11111111
-    let mut mask_2 = BigUint::from(0x00000000ffff00000000ffff00000000_u128);
-    mask_2 <<= 128;
-    mask_2 += 0xffff00000000ffff00000000ffff0000_u128;
-    mask_2 <<= 128;
-    mask_2 += 0x0000ffff00000000ffff00000000ffff_u128;
-
-    //bitmask 0b...11111111 00000000 00000000 11111111
-    let mut mask_3 = BigUint::from(0x0000ff0000ff0000ff0000ff0000ff00_u128);
-    mask_3 <<= 128;
-    mask_3 += 0x00ff0000ff0000ff0000ff0000ff0000_u128;
-    mask_3 <<= 128;
-    mask_3 += 0xff0000ff0000ff0000ff0000ff0000ff_u128;
-
-    //bitmask 0b...1111000000001111000000001111
-    let mut mask_4 = BigUint::from(0x00f00f00f00f00f00f00f00f00f00f00_u128);
-    mask_4 <<= 128;
-    mask_4 += 0xf00f00f00f00f00f00f00f00f00f00f0_u128;
-    mask_4 <<= 128;
-    mask_4 += 0x0f00f00f00f00f00f00f00f00f00f00f_u128;
-
-    //bitmask 0b...11000011000011
-    let mut mask_5 = BigUint::from(0x0c30c30c30c30c30c30c30c30c30c30c_u128);
-    mask_5 <<= 128;
-    mask_5 += 0x30c30c30c30c30c30c30c30c30c30c30_u128;
-    mask_5 <<= 128;
-    mask_5 += 0xc30c30c30c30c30c30c30c30c30c30c3_u128;
-
-    //bitmask 0b...1001001001
-    let mut mask_6 = BigUint::from(0x14924924924924924924924924924924_u128);
-    mask_6 <<= 128;
-    mask_6 += 0x92492492492492492492492492492492_u128;
-    mask_6 <<= 128;
-    mask_6 += 0x49249249249249249249249249249249_u128;
-
-    println!(
-        "Generated masks:\n0: {:#0x}\n1: {:#0x}\n2: {:#0x}\n3: {:#0x}\n4: {:#0x}\n5: {:#0x}\n6: {:#0x}",
-        mask_0,mask_1, mask_2, mask_3, mask_4, mask_5, mask_6
-    );
+fn spread(v: u64) -> BigUint {
 
     println!(" value before masking: \n{:#0x}", v);
 
     let original_amount_of_ones = v.count_ones();
-    let mut amount_to_shift_high = 0u32;
 
-    if v <= u64::MAX.into() {
         let mut value = BigUint::from(v);
-        let original_amount_of_bits = value.bits();
-        println!("original_amount_of_bits: {}", original_amount_of_bits);
+        
+        println!("value before pdep: {:#0x}",v);
+        let mask_low = 0x9249249249249249_u64;
+        println!("mask: {:#0x}",mask_low);
+        let mask_middle = 0x4924924924924924_u64;
+        println!("mask: {:#0x}",mask_middle);
+        let mask_high = 0x2492492492492492_u64;
+        println!("mask: {:#0x}",mask_high);
 
-        // println!("(value << 128): \n{:#0x}", (value.clone() << 128));
-        // value = (value.clone() | (value << 128)) & mask_0;
-        // println!("value after mask 0: \n{:#0x}", value);
-        println!("(value << 64): \n{:#0x}", (value.clone() << 64));
-        value = (value.clone() | (value << 64)) & &mask_1;
-        println!("value after mask 1: \n{:#0x}", value);
-        println!("(value << 32): \n{:#0x}", (value.clone() << 32));
-        value = (value.clone() | (value << 32)) & &mask_2;
-        println!("value after mask 2: \n{:#0x}", value);
-        println!("(value << 16): \n{:#0x}", (value.clone() << 16));
-        value = (value.clone() | (value << 16)) & &mask_3;
-        println!("value after mask 3: \n{:#0x}", value);
-        println!("(value << 8): \n{:#0x}", (value.clone() << 8));
-        value = (value.clone() | (value << 8)) & &mask_4;
-        println!("value after mask 4: \n{:#0x}", value);
-        println!("(value << 4): \n{:#0x}", (value.clone() << 4));
-        value = (value.clone() | (value << 4)) & &mask_5;
-        println!("value after mask 5: \n{:#0x}", value);
-        println!("(value << 2): \n{:#0x}", (value.clone() << 2));
-        value = (value.clone() | (value << 2)) & &mask_6;
-        println!("value after mask 6: \n{:#0x}", value);
+        let low_64 = unsafe { _pdep_u64(v as u64, mask_low) };
+        println!("low_64: {:#0x}",low_64);
+        println!("(v>>22): {:#0x}",(v>>22));
+        let middle_64 = unsafe { _pdep_u64((v>>22) as u64, mask_middle) };
+        println!("middle_64: {:#0x}",middle_64);
+        println!("(v>>42): {:#0x}",(v>>42));
+        let high_64 = unsafe { _pdep_u64((v>>43) as u64, mask_high) };
+        println!("high_64: {:#0x}",high_64);
 
-        assert!(value.count_ones() as u32 == original_amount_of_ones);
+        value = (BigUint::from(high_64) << 128) | (BigUint::from(middle_64) << 64) | BigUint::from(low_64);
+
+        println!("value: {:#0x}",value);
+
+        assert_eq!(value.count_ones() as u32, original_amount_of_ones);
         return value;
-    } else {
-        //separate u128 into two u64s to interleave them and merge after again.
-
-        let mut low_sixty_four = BigUint::zero();
-        //bitmask low,high 64 bit
-        let sixty_four_masks = array![
-            BigUint::from(0x0000000000000000ffffffffffffffff_u128),
-            BigUint::from(0xffffffffffffffff0000000000000000_u128)
-        ];
-        let mut value = BigUint::from(v);
-        let original_amount_of_bits = value.bits();
-        println!("original_amount_of_bits: {}", original_amount_of_bits);
-
-        for i in 0..2 {
-            println!("i: {}", i);
-            if i == 1 {
-                value = BigUint::from(v);
-            }
-            println!("64bit mask: \n{:#0x}", &sixty_four_masks[i]);
-            println!("value: \n{:#0x}", value);
-
-            value &= &sixty_four_masks[i];
-            println!(" value after 64bit mask: \n{:#0x}", value);
-            if i == 0 {
-                //encode also the leading zeros of the lower 64 bits, otherwise they would get truncated
-                amount_to_shift_high += value.to_u64().unwrap().leading_zeros() * 3;
-                println!(
-                    "amount_to_shift_high += value.to_u64().unwrap().leading_zeros() * 3: {}",
-                    amount_to_shift_high
-                );
-            }
-
-            if i == 1 {
-                value >>= 64;
-                println!(" value after shifting to correct value: \n{:#0x}", value);
-            }
-
-            println!("(value << 64): {:#0x}", (value.clone() << 64));
-            value = (value.clone() | (value << 64)) & &mask_1;
-            println!("value after mask 1: \n{:#0x}", value);
-            println!("(value << 32): \n{:#0x}", (value.clone() << 32));
-            value = (value.clone() | (value << 32)) & &mask_2;
-            println!("value after mask 2: \n{:#0x}", value);
-            println!("(value << 16): \n{:#0x}", (value.clone() << 16));
-            value = (value.clone() | (value << 16)) & &mask_3;
-            println!("value after mask 3: \n{:#0x}", value);
-            println!("(value << 8): \n{:#0x}", (value.clone() << 8));
-            value = (value.clone() | (value << 8)) & &mask_4;
-            println!("value after mask 4: \n{:#0x}", value);
-            println!("(value << 4): \n{:#0x}", (value.clone() << 4));
-            value = (value.clone() | (value << 4)) & &mask_5;
-            println!("value after mask 5: \n{:#0x}", value);
-            println!("(value << 2): \n{:#0x}", (value.clone() << 2));
-            value = (value.clone() | (value << 2)) & &mask_6;
-            println!("value after mask 6: \n{:#0x}", value);
-
-            if i == 0 {
-                low_sixty_four = value.clone();
-            }
-        }
-
-        amount_to_shift_high += low_sixty_four.bits() as u32 + 2;
-
-        value = (value.clone() << amount_to_shift_high) | low_sixty_four;
-
-        assert!(value.count_ones() as u32 == original_amount_of_ones);
-        return value;
-    }
 }
 
 pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -> BigUint {
@@ -440,7 +311,8 @@ pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -
 
 pub fn morton_encode_cell(cell_index: u64) -> BigUint {
     //TODO: make all parameters only u64 not with into()
-    return spread(cell_index.into());
+    println!("cell_index: {:b}",cell_index);
+    return spread(cell_index);
 }
 
 pub fn insertion_sort(data: &mut Vec<(BigUint, usize)>) {
@@ -695,7 +567,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         for _ in 0..100 {
-            let x = rng.gen::<u128>();
+            let x = rng.gen::<u64>();
             let spread = spread(x);
             println!("x: {:#0x}; spread(x): {:#0x}", x, spread);
             assert!(check_interleaved_by_two(spread));
@@ -765,109 +637,6 @@ mod tests {
         assert_eq!(map[2], (BigUint::from(u128::MAX), 4));
         assert_eq!(map[3], (BigUint::from(u128::MAX).pow(2) - 1u8, 1));
         assert_eq!(map[4], (BigUint::from(u128::MAX).pow(2), 0));
-    }
-
-    fn morton_encode_21bits(data: u64) -> u64 {
-        let mut x = data & 0x1fffff; //only first 21 bits
-        println!(" 21bits.. before masking: \n{:#0x}", x);
-        x = (x | x << 32) & 0x1f00000000ffff; // shift left 32 bits, OR with self, and         00011111000000000000000000000000000000001111111111111111
-        println!(" 21bits.. x after mask 1: \n{:#0x}", x);
-        x = (x | x << 16) & 0x1f0000ff0000ff; // shift left 16 bits, OR with self, and         00011111000000000000000011111111000000000000000011111111
-        println!(" 21bits.. x after mask 2: \n{:#0x}", x);
-        x = (x | x << 8) & 0x100f00f00f00f00f; // shift left 8 bits, OR with self,and 0001000000001111000000001111000000001111000000001111000000000000
-        println!(" 21bits.. x after mask 3: \n{:#0x}", x);
-        x = (x | x << 4) & 0x10c30c30c30c30c3; // shift left 4 bits, OR with self,and 0001000011000011000011000011000011000011000011000011000100000000
-        println!(" 21bits.. x after mask 4: \n{:#0x}", x);
-        x = (x | x << 2) & 0x1249249249249249;
-        println!(" 21bits.. x after mask 5: \n{:#0x}", x);
-        return x;
-    }
-
-    #[test]
-    fn test_neighbors_z_morton_code_demonstrator_3x_21bits() {
-        println!(
-            "--------------morton code demonstrator with 3x21bit uint values encoded to one 63 bit morton code--------------\n
-            binary 0x10000                                 {:b}",
-            0x10000
-        );
-        println!(
-            "binary 0x10000 | 0x10000 <<1:                 {:b}",
-            (0x10000 | 0x10000 << 1)
-        );
-
-        println!(
-            "binary 0x10000 | 0x10000 <<1 | 0x10000 <<2:  {:b}",
-            (0x10000 | 0x10000 << 1 | 0x10000 << 2)
-        );
-
-        /*
-                output
-        binary 0x10000                                 10000000000000000
-        binary 0x10000 | 0x10000 <<1:                 110000000000000000
-        binary 0x10000 | 0x10000 <<1 | 0x10000 <<2:  1110000000000000000
-
-                 */
-
-        println!(
-            "morton code separately from 0x1fffff for x, y and z: \n x: {:b};\n y: {:b};\n z: {:b}",
-            morton_encode_21bits(0x1fffff),
-            morton_encode_21bits(0x1fffff),
-            morton_encode_21bits(0x1fffff)
-        );
-        println!(
-            "morton code combined: morton(x):                                        {:b}",
-            morton_encode_21bits(0x1fffff)
-        );
-        println!(
-            "morton code combined: morton(x)| morton(y) <<1:                        {:b}",
-            morton_encode_21bits(0x1fffff) | morton_encode_21bits(0x1fffff) << 1
-        );
-        println!(
-            "morton code combined: morton(x)| morton(y) <<1 | morton(z) << 2:      {:b}",
-            morton_encode_21bits(0x1fffff)
-                | morton_encode_21bits(0x1fffff) << 1
-                | morton_encode_21bits(0x1fffff) << 2
-        );
-
-        assert_eq!(
-            morton_encode_21bits(0x1fffff)
-                | morton_encode_21bits(0x1fffff) << 1
-                | morton_encode_21bits(0x1fffff) << 2,
-            (2u64.pow(63) - 1)
-        );
-
-        /*output
-        morton code separately from 0x1fffff for x, y and z:
-         x: 1001001001001001001001001001001001001001001001001001001001001;
-         y: 1001001001001001001001001001001001001001001001001001001001001;
-         z: 1001001001001001001001001001001001001001001001001001001001001
-        morton code combined: morton(x):                                        1001001001001001001001001001001001001001001001001001001001001
-        morton code combined: morton(x)| morton(y) <<1:                        11011011011011011011011011011011011011011011011011011011011011
-        morton code combined: morton(x)| morton(y) <<1 | morton(z) << 2:      111111111111111111111111111111111111111111111111111111111111111 */
-    }
-
-    #[test]
-    fn test_combine_spread() {
-        let x: u128 = 2u128.pow(127);
-        println!("test shifting with result of morton code being 0x8000...u128");
-
-        let morton_code = combine_spread(x.into(), x.into(), x.into());
-        println!("mem::size_of::<u128>(): {}", mem::size_of::<u128>());
-        // assert_eq!(morton_code.bits(),(mem::size_of::<u128>()*3).try_into().unwrap());
-        assert_eq!(
-            morton_code,
-            BigUint::from(2u8).pow(127) + BigUint::from(2u8).pow(128) + BigUint::from(2u8).pow(129)
-        );
-
-        let x = u128::MAX;
-        println!("\ntest shifting with result of morton code being 0xfff...");
-
-        let morton_code = combine_spread(x.into(), x.into(), x.into());
-        let should_be = BigUint::from(u128::MAX)
-            | BigUint::from(u128::MAX) * BigUint::from(2u8)
-            | BigUint::from(u128::MAX) * BigUint::from(4u8);
-        println!("should_be: {:#0x}\nis: {:#0x}", should_be, morton_code);
-        assert_eq!(morton_code, should_be);
     }
 
     #[test]
@@ -948,84 +717,6 @@ mod tests {
         assert_eq!(decoded.1, y.into());
         assert_eq!(decoded.2, z.into());
     }
-
-    #[test]
-    fn test_morton_encode_decode_3d_u128_input() {
-        let x = u128::MAX;
-        let y = 0x2222_00000000_22222222u128;
-        let z = 0x0u128;
-
-        println!("\nSPREAD U128 ...");
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let x_spread_amount_of_ones = x_spread.count_ones();
-        let y_spread_amount_of_ones = y_spread.count_ones();
-        let z_spread_amount_of_ones = z_spread.count_ones();
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-
-        assert_eq!(
-            morton_code.count_ones(),
-            x_spread_amount_of_ones + y_spread_amount_of_ones + z_spread_amount_of_ones
-        );
-
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-
-        println!("decoded.1: {:b}", decoded.1);
-
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-
-        //test with big values
-        let x = u128::MAX - 0x10000000000000000000000000000000u128;
-        let y = u128::MAX - 0x20000000000000000000000000000000u128;
-        let z = u128::MAX - 0x30000000000000000000000000000000u128;
-
-        let x_spread = spread(x.into());
-        let y_spread = spread(y.into());
-        let z_spread = spread(z.into());
-
-        let morton_code = combine_spread(x_spread, y_spread, z_spread);
-        println!(
-            "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-            morton_code
-        );
-        let decoded = morton_decode_3d(morton_code);
-        assert_eq!(decoded.0, x.into());
-        assert_eq!(decoded.1, y.into());
-        assert_eq!(decoded.2, z.into());
-
-        //test with random values
-        let mut rng = rand::thread_rng();
-
-        for _ in 0..100 {
-            let x = rng.gen::<u128>();
-            let y = rng.gen::<u128>();
-            let z = rng.gen::<u128>();
-
-            let x_spread = spread(x.into());
-            let y_spread = spread(y.into());
-            let z_spread = spread(z.into());
-
-            let morton_code = combine_spread(x_spread, y_spread, z_spread);
-            println!(
-                "combine_spread(x_spread, y_spread, z_spread): \n{:#0x}",
-                morton_code
-            );
-            let decoded = morton_decode_3d(morton_code);
-            assert_eq!(decoded.0, x.into());
-            assert_eq!(decoded.1, y.into());
-            assert_eq!(decoded.2, z.into());
-        }
-    }
-
     // #[test]
     // fn test_neighbors_z_morton_encode_application() {
     /*TODO: test and benchmark with BTreeMap

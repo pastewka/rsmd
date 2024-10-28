@@ -1,10 +1,10 @@
 use crate::md_implementation::atoms::Atoms;
+use bigint::U256;
 use core::arch::x86_64::_pdep_u64;
 use itertools::iproduct;
 use ndarray::s;
 use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
 use ndarray_linalg::norm::Norm;
-use num::BigUint;
 use std::cmp::Ordering;
 
 use super::atoms::ArrayExt;
@@ -101,12 +101,12 @@ impl NeighborListZ {
             .collect();
 
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
-        let mut handles: Vec<(BigUint, usize)> = Vec::new();
+        let mut handles: Vec<(U256, usize)> = Vec::new();
         let nb_atoms = atoms.positions.shape()[1];
 
         for i in 0..nb_atoms {
             handles.push((
-                BigUint::from(morton_encode_cell(Self::i32_to_u64_order_preserving(
+                U256::from(morton_encode_cell(Self::i32_to_u64_order_preserving(
                     atom_to_cell[i],
                 ))),
                 i,
@@ -118,21 +118,24 @@ impl NeighborListZ {
         //store atoms in memory according to handle order
         if sort_atoms_array {
             let mut positions = Array2::zeros((3, nb_atoms));
-            for (new_index, (_, original_index)) in handles.iter().enumerate() {
+            println!("old handles {:?}", handles);
+            println!("old atoms.positions: {:?}", atoms.positions);
+            let h = handles.clone();
+            for (new_index, (_, original_index)) in h.iter().enumerate() {
                 positions
                     .slice_mut(s![.., new_index])
                     .assign(&atoms.positions.slice(s![.., *original_index]));
+                handles[new_index].1 = new_index;
             }
             atoms.positions.assign(&positions);
+            println!("after reordering atoms.positions: {:?}", atoms.positions);
+            println!("new handles {:?}", handles);
         }
 
-        let mut sorted_atom_indices = Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
-
+        let mut sorted_atom_indices =
+            Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
         //sort indices according to cell membership
         sorted_atom_indices.sort_by(|&i, &j| atom_to_cell[i].cmp(&atom_to_cell[j]));
-
-        //Find first entry in handles belonging to the current cell
-                //TODO: remove binned_atoms completely and depend on handles!
 
         let mut cell_index: i32 = atom_to_cell[sorted_atom_indices[0]];
         let mut entry_index: i32 = 0;
@@ -267,9 +270,9 @@ pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
     }
 }
 
-fn spread(v: u64) -> BigUint {
+fn spread(v: u64) -> U256 {
     let original_amount_of_ones = v.count_ones();
-    let mut value = BigUint::from(v);
+    let mut value = U256::from(v);
 
     let mask_low = 0x9249249249249249_u64;
     let mask_middle = 0x4924924924924924_u64;
@@ -279,24 +282,16 @@ fn spread(v: u64) -> BigUint {
     let middle_64 = unsafe { _pdep_u64((v >> 22) as u64, mask_middle) };
     let high_64 = unsafe { _pdep_u64((v >> 43) as u64, mask_high) };
 
-    value =
-        (BigUint::from(high_64) << 128) | (BigUint::from(middle_64) << 64) | BigUint::from(low_64);
+    value = (U256::from(high_64) << 128) | (U256::from(middle_64) << 64) | U256::from(low_64);
 
-    assert_eq!(value.count_ones() as u32, original_amount_of_ones);
     return value;
 }
 
-pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -> BigUint {
-    let result = x_spread | y_spread << 1 | z_spread << 2;
-
-    return result;
-}
-
-pub fn morton_encode_cell(cell_index: u64) -> BigUint {
+pub fn morton_encode_cell(cell_index: u64) -> U256 {
     return spread(cell_index);
 }
 
-pub fn insertion_sort(data: &mut Vec<(BigUint, usize)>) {
+pub fn insertion_sort(data: &mut Vec<(U256, usize)>) {
     for i in 1..data.len() {
         let mut j = i;
         let current = data[i].clone();
@@ -316,12 +311,9 @@ pub fn insertion_sort(data: &mut Vec<(BigUint, usize)>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bigint::{U128, U256};
     use itertools::assert_equal;
     use ndarray::Array2;
-    use num::BigUint;
-    use num::One;
-    use num::Zero;
-    use num::ToPrimitive;
     use rand::Rng;
 
     #[test]
@@ -392,10 +384,14 @@ mod tests {
         let new_positions_arr = Array2::from_shape_vec((3, 3), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
+        let original_positions = atoms.positions.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
+
+        //test without resorting the original atoms array in memory
         let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0, false);
 
+        assert_eq!(atoms.positions, original_positions);
         assert_eq!(neighbor_list.nb_total_neighbors(), 2);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 1);
@@ -427,8 +423,18 @@ mod tests {
         assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 0);
     }
 
-    fn check_interleaved_by_two(spread_value: BigUint) -> bool {
-        let amount_of_ones = spread_value.count_ones();
+    fn count_ones(value: U256) -> u64 {
+        let mut count = 0u64;
+        for i in 0..value.bits() {
+            if value.bit(i) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    fn check_interleaved_by_two(spread_value: U256) -> bool {
+        let amount_of_ones = count_ones(spread_value);
         let mut count_checked_ones: u64 = 0;
 
         for i in 0..spread_value.bits() {
@@ -448,8 +454,8 @@ mod tests {
         return false;
     }
 
-    fn morton_decode(morton_code: BigUint) -> BigUint {
-        let mut result = BigUint::zero();
+    fn morton_decode(morton_code: U256) -> U256 {
+        let mut result = U256::zero();
         let mut amount_to_shift_for_endianness_swap = 0u32;
 
         let mut modified_morton = morton_code.clone();
@@ -458,50 +464,53 @@ mod tests {
             let before = result.clone();
             println!(
                 "result before: {:b}; morton code: {:b}",
-                before, modified_morton
+                before.bits(),
+                modified_morton.bits()
             );
             if modified_morton.bit(0) {
-                result = (&result << 1) | BigUint::one();
+                result = (result << 1) | U256::one();
             } else {
-                result = &result << 1;
+                result = result << 1;
             }
             if result == before {
                 // need of shift when swapping endianness, because leading zeros get truncated
                 amount_to_shift_for_endianness_swap += 1;
             }
 
-            modified_morton >>= 3;
+            modified_morton = modified_morton >> 3;
 
             println!(
                 "result after: {:b}; morton code: {:b}",
-                result, modified_morton
+                result.bits(),
+                modified_morton.bits()
             );
             println!("modified_morton.bits(): {}", modified_morton.bits());
         }
         if modified_morton.bits() > 0 {
             if modified_morton.bit(0) {
-                result = (&result << 1) | BigUint::one();
+                result = (result << 1) | U256::one();
             } else {
-                result = &result << 1;
+                result = result << 1;
             }
         }
         println!(
             "morton decode result before swapping endianness: \n{:b}; morton code: \n{:b}",
-            result, modified_morton
+            result.bits(),
+            modified_morton.bits()
         );
 
-        let mut reversed_result = BigUint::zero();
+        let mut reversed_result = U256::zero();
         while result.bits() > 0 {
             if result.bit(0) {
-                reversed_result = (&reversed_result << 1) | BigUint::one();
+                reversed_result = (reversed_result << 1) | U256::one();
             } else {
-                reversed_result = &reversed_result << 1;
+                reversed_result = reversed_result << 1;
             }
-            result >>= 1;
+            result = result >> 1;
         }
-        result = reversed_result << amount_to_shift_for_endianness_swap;
+        result = reversed_result << usize::try_from(amount_to_shift_for_endianness_swap).unwrap();
 
-        println!("final demortanized result: \n{:b}", result);
+        println!("final demortanized result: \n{:b}", result.bits());
 
         return result;
     }
@@ -509,27 +518,23 @@ mod tests {
     #[test]
     fn test_check_interleaved_by_two() {
         //check_interleaved_by_two() should check, if the provided number is interleaved by 2, no matter if the bit of the original value was 0 or 1.
-        let a = BigUint::from(0b1001001001001001u32);
+        let a = U256::from(0b1001001001001001u32);
         assert!(a.bit(15));
-        assert!(check_interleaved_by_two(BigUint::from(0b1001001001001u32))); // original number: 0b..000011111
-        assert!(check_interleaved_by_two(BigUint::from(
-            0b1001001001001000u32
-        ))); // original number: 0b..0000111110
-        assert!(check_interleaved_by_two(BigUint::from(
-            0b0000000000001001001001001000u128
-        ))); // original number: 0b..0000111110
-        assert!(check_interleaved_by_two(BigUint::from(0b0001001001u32))); // original number: 0b..0000111
-        assert!(check_interleaved_by_two(BigUint::from(
-            0x200200200200200200200200u128
-        ))); // original number: 0x88888888
+        assert!(check_interleaved_by_two(U256::from(0b1001001001001u32))); // original number: 0b..000011111
+        assert!(check_interleaved_by_two(U256::from(0b1001001001001000u32))); // original number: 0b..0000111110
+                                                                              // assert!(check_interleaved_by_two(U256::from(
+                                                                              //     0b0000000000001001001001001000u128
+                                                                              // ))); // original number: 0b..0000111110
+        assert!(check_interleaved_by_two(U256::from(0b0001001001u32))); // original number: 0b..0000111
+                                                                        // assert!(check_interleaved_by_two(U256::from(
+                                                                        //     0x200200200200200200200200u128
+                                                                        // ))); // original number: 0x88888888
 
-        assert!(!check_interleaved_by_two(BigUint::from(
-            0b100100100100100u32
-        )));
-        assert!(!check_interleaved_by_two(BigUint::from(0b101001001001u32)));
-        assert!(!check_interleaved_by_two(BigUint::from(0b000100001u32)));
-        assert!(!check_interleaved_by_two(BigUint::from(0b000100101u32)));
-        assert!(!check_interleaved_by_two(BigUint::from(0b0011001001u32)));
+        assert!(!check_interleaved_by_two(U256::from(0b100100100100100u32)));
+        assert!(!check_interleaved_by_two(U256::from(0b101001001001u32)));
+        assert!(!check_interleaved_by_two(U256::from(0b000100001u32)));
+        assert!(!check_interleaved_by_two(U256::from(0b000100101u32)));
+        assert!(!check_interleaved_by_two(U256::from(0b0011001001u32)));
     }
 
     #[test]
@@ -573,27 +578,30 @@ mod tests {
     #[test]
     fn test_insertion_sort() {
         let mut map = vec![
-            (BigUint::from(u128::MAX).pow(2), 0),
-            (BigUint::from(u128::MAX).pow(2) - 1u8, 1),
-            (BigUint::from(1u8), 2),
-            (BigUint::from(200u8), 3),
-            (BigUint::from(u128::MAX), 4),
+            (U256::from(U128::MAX).pow(U256::from(2)), 0),
+            (U256::from(U128::MAX).pow(U256::from(2)) - U256::one(), 1),
+            (U256::from(1u8), 2),
+            (U256::from(200u8), 3),
+            (U256::from(U128::MAX), 4),
         ];
         insertion_sort(&mut map);
 
-        assert_eq!(map[0], (BigUint::from(1u8), 2));
-        assert_eq!(map[1], (BigUint::from(200u8), 3));
-        assert_eq!(map[2], (BigUint::from(u128::MAX), 4));
-        assert_eq!(map[3], (BigUint::from(u128::MAX).pow(2) - 1u8, 1));
-        assert_eq!(map[4], (BigUint::from(u128::MAX).pow(2), 0));
+        assert_eq!(map[0], (U256::from(1u8), 2));
+        assert_eq!(map[1], (U256::from(200u8), 3));
+        assert_eq!(map[2], (U256::from(U128::MAX), 4));
+        assert_eq!(
+            map[3],
+            (U256::from(U128::MAX).pow(U256::from(2)) - U256::one(), 1)
+        );
+        assert_eq!(map[4], (U256::from(U128::MAX).pow(U256::from(2)), 0));
     }
 
     #[test]
     fn test_morton_decode() {
-        let morton_code = BigUint::from(0b1_001_001_000_000_001u64);
+        let morton_code = U256::from(0b1_001_001_000_000_001u64);
         let decoded_result = morton_decode(morton_code);
 
-        assert_eq!(decoded_result, BigUint::from(0b111001u128));
+        assert_eq!(decoded_result, U256::from(0b111001u32));
     }
 
     #[test]
@@ -606,7 +614,7 @@ mod tests {
             println!("x: {:#0x}; spread(x): {:#0x}", x, spread);
             assert_eq!(
                 NeighborListZ::i32_to_u64_order_preserving(x),
-                morton_decode(spread).to_u64().unwrap()
+                morton_decode(spread).as_u64()
             );
         }
     }

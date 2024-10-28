@@ -13,7 +13,7 @@ log = "0.4.21"
 #tikv-jemallocator = "0.5.4"
 mimalloc = { version = "*", default-features = false }
 ndarray-linalg = "0.16.0"
-num = "0.4.3"
+bigint = "4.4.3"
 #mpi = { version = "0.8.0", features = ["user-operations", "derive"] }
 #ndarray-stats = "0.5.1"
 
@@ -44,6 +44,10 @@ harness = false
 
 [[bench]]
 name = "ndarray_iteration_benchmark"
+harness = false
+
+[[bench]]
+name = "neighbors_vs_neighbors_z_benchmark"
 harness = false
 
 #[[bench]]

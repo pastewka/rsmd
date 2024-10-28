@@ -18,7 +18,7 @@ impl NeighborList {
     }
 
     //update neighbor list from the particle positions stored in the 'atoms' argument
-    pub fn update(&mut self, atoms: Atoms, cutoff: f64) -> (Array1<i32>, Array1<i32>) {
+    pub fn update(&mut self, atoms: &mut Atoms, cutoff: f64) -> (Array1<i32>, Array1<i32>) {
         if atoms.positions.is_empty() {
             self.seed.conservative_resize(Dim(0));
             self.neighbors.conservative_resize(Dim(0));
@@ -229,7 +229,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborList = NeighborList::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 1.5);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 1.5);
 
         assert_eq!(neighbor_list.nb_total_neighbors(), 10);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 3);
@@ -265,7 +265,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborList = NeighborList::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 5.0);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0);
 
         println!("neighbors: {:?}", neighbors);
 
@@ -289,7 +289,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborList = NeighborList::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 5.0);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0);
 
         assert_eq!(neighbor_list.nb_total_neighbors(), 2);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
@@ -309,7 +309,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborList = NeighborList::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 0.5);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 0.5);
 
         println!("neighbors: {:?}", neighbors);
 

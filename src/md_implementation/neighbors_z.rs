@@ -1,13 +1,10 @@
 use crate::md_implementation::atoms::Atoms;
 use core::arch::x86_64::_pdep_u64;
 use itertools::iproduct;
-use ndarray::array;
 use ndarray::s;
 use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
 use ndarray_linalg::norm::Norm;
 use num::BigUint;
-use num::ToPrimitive;
-use num::Zero;
 use std::cmp::Ordering;
 
 use super::atoms::ArrayExt;
@@ -27,7 +24,7 @@ impl NeighborListZ {
     //update neighbor list from the particle positions stored in the 'atoms' argument
     pub fn update(
         &mut self,
-        mut atoms: Atoms,
+        atoms: &mut Atoms,
         cutoff: f64,
         sort_atoms_array: bool,
     ) -> (Array1<i32>, Array1<i32>) {
@@ -103,8 +100,6 @@ impl NeighborListZ {
             .map(|col| Self::coordinate_to_index(col[0], col[1], col[2], nb_grid_points.view()))
             .collect();
 
-        println!("atom_to_cell: {:?}", atom_to_cell);
-
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
         let mut handles: Vec<(BigUint, usize)> = Vec::new();
         let nb_atoms = atoms.positions.shape()[1];
@@ -131,11 +126,13 @@ impl NeighborListZ {
             atoms.positions.assign(&positions);
         }
 
-        let mut sorted_atom_indices =
-            Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
+        let mut sorted_atom_indices = Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
 
         //sort indices according to cell membership
         sorted_atom_indices.sort_by(|&i, &j| atom_to_cell[i].cmp(&atom_to_cell[j]));
+
+        //Find first entry in handles belonging to the current cell
+                //TODO: remove binned_atoms completely and depend on handles!
 
         let mut cell_index: i32 = atom_to_cell[sorted_atom_indices[0]];
         let mut entry_index: i32 = 0;
@@ -285,8 +282,6 @@ fn spread(v: u64) -> BigUint {
     value =
         (BigUint::from(high_64) << 128) | (BigUint::from(middle_64) << 64) | BigUint::from(low_64);
 
-    println!("value: {:#0x}", value);
-
     assert_eq!(value.count_ones() as u32, original_amount_of_ones);
     return value;
 }
@@ -298,7 +293,6 @@ pub fn combine_spread(x_spread: BigUint, y_spread: BigUint, z_spread: BigUint) -
 }
 
 pub fn morton_encode_cell(cell_index: u64) -> BigUint {
-    println!("cell_index: {:b}", cell_index);
     return spread(cell_index);
 }
 
@@ -327,6 +321,7 @@ mod tests {
     use num::BigUint;
     use num::One;
     use num::Zero;
+    use num::ToPrimitive;
     use rand::Rng;
 
     #[test]
@@ -339,7 +334,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 1.5, false);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 1.5, false);
 
         assert_eq!(neighbor_list.nb_total_neighbors(), 10);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 3);
@@ -375,7 +370,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 5.0, false);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0, false);
 
         println!("neighbors: {:?}", neighbors);
 
@@ -399,7 +394,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 5.0, false);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0, false);
 
         assert_eq!(neighbor_list.nb_total_neighbors(), 2);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
@@ -417,9 +412,11 @@ mod tests {
         let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
+        let atoms_before = atoms.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(atoms, 0.5, false);
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 0.5, false);
+        assert_equal(atoms.positions, atoms_before.positions);
 
         println!("neighbors: {:?}", neighbors);
 
@@ -452,7 +449,6 @@ mod tests {
     }
 
     fn morton_decode(morton_code: BigUint) -> BigUint {
-        let mut b = BigUint::zero();
         let mut result = BigUint::zero();
         let mut amount_to_shift_for_endianness_swap = 0u32;
 

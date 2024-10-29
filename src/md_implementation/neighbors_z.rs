@@ -118,8 +118,6 @@ impl NeighborListZ {
         //store atoms in memory according to handle order
         if sort_atoms_array {
             let mut positions = Array2::zeros((3, nb_atoms));
-            println!("old handles {:?}", handles);
-            println!("old atoms.positions: {:?}", atoms.positions);
             let h = handles.clone();
             for (new_index, (_, original_index)) in h.iter().enumerate() {
                 positions
@@ -128,8 +126,6 @@ impl NeighborListZ {
                 handles[new_index].1 = new_index;
             }
             atoms.positions.assign(&positions);
-            println!("after reordering atoms.positions: {:?}", atoms.positions);
-            println!("new handles {:?}", handles);
         }
 
         let mut sorted_atom_indices =
@@ -324,10 +320,12 @@ mod tests {
         let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
+        let original_positions = atoms.positions.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
         let (seed, neighbors) = neighbor_list.update(&mut atoms, 1.5, false);
 
+        assert_eq!(atoms.positions, original_positions);
         assert_eq!(neighbor_list.nb_total_neighbors(), 10);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 3);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 3);
@@ -350,6 +348,19 @@ mod tests {
             neighbors.slice(s![seed[3]..seed[4]]).into_owned(),
             Array1::<i32>::from_vec(vec![0, 1]),
         );
+
+        //test with reordering the original atoms in memory
+        atoms.positions.assign(&new_positions_arr);
+
+        let mut neighbor_list: NeighborListZ = NeighborListZ::new();
+        let (seed, neighbors) = neighbor_list.update(&mut atoms, 1.5, true);
+
+        assert!((atoms.positions != original_positions));
+        assert_eq!(neighbor_list.nb_total_neighbors(), 10);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 2);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 3);
+        assert_eq!(neighbor_list.nb_neighbors_of_atom(3), 2);
     }
 
     #[test]
@@ -360,12 +371,14 @@ mod tests {
         let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
+        let original_positions = atoms.positions.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
         let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0, false);
 
         println!("neighbors: {:?}", neighbors);
 
+        assert_eq!(atoms.positions, original_positions);
         assert_eq!(neighbor_list.nb_total_neighbors(), 2);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 0);
         assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 0);
@@ -408,11 +421,11 @@ mod tests {
         let new_positions_arr = Array2::from_shape_vec((3, 4), new_positions)
             .expect("Failed to create new positions array");
         atoms.positions.assign(&new_positions_arr);
-        let atoms_before = atoms.clone();
+        let original_positions = atoms.positions.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
         let (seed, neighbors) = neighbor_list.update(&mut atoms, 0.5, false);
-        assert_equal(atoms.positions, atoms_before.positions);
+        assert_eq!(atoms.positions, original_positions);
 
         println!("neighbors: {:?}", neighbors);
 

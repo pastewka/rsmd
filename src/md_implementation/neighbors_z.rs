@@ -5,7 +5,6 @@ use itertools::iproduct;
 use ndarray::s;
 use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
 use ndarray_linalg::norm::Norm;
-use std::cmp::Ordering;
 
 use super::atoms::ArrayExt;
 
@@ -22,6 +21,7 @@ impl NeighborListZ {
     }
 
     //update neighbor list from the particle positions stored in the 'atoms' argument
+    //& reorder the atoms in memory in z-order of cell index if sort_atoms_array is true
     pub fn update(
         &mut self,
         atoms: &mut Atoms,
@@ -39,7 +39,6 @@ impl NeighborListZ {
 
         let mut origin = Array1::<f64>::from_elem(3, 3.0);
         let mut lengths = Array1::<f64>::from_elem(3, 3.0);
-        let mut padding_lengths = Array1::<f64>::from_elem(3, 3.0);
 
         // This is the number of cells/grid points that fit into the enclosing
         // rectangle. The grid is such that a sphere of diameter *cutoff* fits into
@@ -49,55 +48,53 @@ impl NeighborListZ {
         // Compute box that encloses all atomic positions. Make sure that box
         // lengths are exactly divisible by the interaction range. Also compute the
         // number of cells in each Cartesian direction.
-        for (index_of_row, row) in atoms.positions.axis_iter(Axis(0)).enumerate() {
-            let mut current_min = f64::INFINITY;
-            for &val in row.iter() {
-                if val < current_min {
-                    current_min = val;
-                }
-            }
-            origin[index_of_row] = current_min;
-        }
-        for (index_of_row, row) in atoms.positions.axis_iter(Axis(0)).enumerate() {
-            let mut current_max = -f64::INFINITY;
-            for &val in row.iter() {
-                if val > current_max {
-                    current_max = val;
-                }
-            }
-            lengths[index_of_row] = current_max - origin[index_of_row];
+        for (pos_row, (origin_element, lengths_element)) in atoms
+            .positions
+            .axis_iter(Axis(0))
+            .zip(origin.iter_mut().zip(lengths.iter_mut()))
+        {
+            //minimum of each positions row
+            *origin_element = pos_row.iter().fold(f64::INFINITY, |accumulator, &element| {
+                f64::min(accumulator, element)
+            });
+            *lengths_element = pos_row
+                .iter()
+                .fold(-f64::INFINITY, |accumulator, &element| {
+                    f64::max(accumulator, element)
+                })
+                - *origin_element;
         }
 
-        for (index_of_i, i) in (&lengths / cutoff).iter().enumerate() {
-            nb_grid_points[index_of_i] = i.ceil() as i32;
+        let l_by_cutoffs: Array1<i32> = (&lengths / cutoff)
+            .iter()
+            .map(|&l_by_cutoff| l_by_cutoff.ceil() as i32)
+            .collect();
 
-            //set to 1 if all atoms are in-plane
-            if nb_grid_points[index_of_i] <= 0 {
-                nb_grid_points[index_of_i] = 1;
-            }
+        for (l_by_cutoff, nb_grid_point) in l_by_cutoffs.iter().zip(nb_grid_points.iter_mut()) {
+            *nb_grid_point = std::cmp::max(*l_by_cutoff, 1);
         }
 
-        for (index_of_i, i) in nb_grid_points.iter().enumerate() {
-            padding_lengths[index_of_i] = *i as f64 * cutoff - &lengths[index_of_i];
-            origin[index_of_i] -= padding_lengths[index_of_i] / 2.0;
-            lengths[index_of_i] += padding_lengths[index_of_i];
+        for (index, &nb_grid_point) in nb_grid_points.iter().enumerate() {
+            let padding_length = nb_grid_point as f64 * cutoff - lengths[index];
+            origin[index] -= padding_length / 2.0;
+            lengths[index] += padding_length;
         }
 
         let mut r = atoms.positions.clone();
-        for mut col in r.axis_iter_mut(Axis(1)) {
-            col -= &origin;
-        }
+        let transform_factor = nb_grid_points.mapv(|nb_grid_pt| nb_grid_pt as f64) / &lengths;
 
-        for mut col in r.axis_iter_mut(Axis(1)) {
-            col *= &(nb_grid_points.mapv(|nb| nb as f64) / &lengths);
+        for mut r_col in r.axis_iter_mut(Axis(1)) {
+            r_col -= &origin;
+            r_col *= &transform_factor;
         }
 
         let r = r.mapv(|i| i.floor() as i32);
 
-        //compute cell index to store in e.g. atom_to_cell[0] the cell_index of atom 0
         let atom_to_cell: Array1<i32> = r
             .axis_iter(Axis(1))
-            .map(|col| Self::coordinate_to_index(col[0], col[1], col[2], nb_grid_points.view()))
+            .map(|r_col| {
+                Self::coordinate_to_index(r_col[0], r_col[1], r_col[2], nb_grid_points.view())
+            })
             .collect();
 
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
@@ -130,24 +127,28 @@ impl NeighborListZ {
 
         let mut sorted_atom_indices =
             Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
-        //sort indices according to cell membership
-        sorted_atom_indices.sort_by(|&i, &j| atom_to_cell[i].cmp(&atom_to_cell[j]));
 
-        let mut cell_index: i32 = atom_to_cell[sorted_atom_indices[0]];
+        //sort indices according to cell membership
+        sorted_atom_indices.sort_by_key(|&i| atom_to_cell[i]);
+
+        let mut previous_cell_index: i32 = atom_to_cell[sorted_atom_indices[0]];
         let mut entry_index: i32 = 0;
-        let mut binned_atoms: Vec<(i32, i32)> = vec![(cell_index, entry_index)];
+        let mut binned_atoms: Vec<(i32, i32)> = vec![(previous_cell_index, entry_index)];
+
+        let nb_atoms = atoms.positions.shape()[1];
 
         for i in 1..sorted_atom_indices.len() {
-            if atom_to_cell[sorted_atom_indices[i]] != cell_index {
-                cell_index = atom_to_cell[sorted_atom_indices[i]];
+            let current_cell_index = atom_to_cell[sorted_atom_indices[i]];
+
+            if current_cell_index != previous_cell_index {
+                previous_cell_index = atom_to_cell[sorted_atom_indices[i]];
                 entry_index = i as i32;
-                binned_atoms.push((cell_index, entry_index));
+                binned_atoms.push((current_cell_index, entry_index));
             }
         }
 
         self.seed.conservative_resize(Dim(nb_atoms + 1));
 
-        // Constructing index shift vectors to look for neighboring cells
         let mut neighborhood = Array2::<i32>::zeros((3, 27));
 
         // Fill the array with combinations of x, y, z in the range -1 to 1
@@ -157,82 +158,75 @@ impl NeighborListZ {
             neighborhood[(2, i)] = z;
         }
 
-        let mut n: usize = 0;
+        let mut neighbors_index: usize = 0;
         let cutoff_sq = cutoff * cutoff;
-        for i in 0..nb_atoms {
-            self.seed[i] = n as i32;
+        for atom_index in 0..nb_atoms {
+            self.seed[atom_index] = neighbors_index as i32;
 
             let cell_coord = (&nb_grid_points.mapv(|nb_grid_pt| nb_grid_pt as f64)
-                * (&atoms.positions.column(i) - &origin.view())
+                * (&atoms.positions.column(atom_index) - &origin.view())
                 / &lengths.view())
-                .mapv(|coord_raw| coord_raw.floor() as i32);
+                .mapv(|coord_float| coord_float.floor() as i32);
 
             for shift in neighborhood.axis_iter(Axis(1)) {
                 let neigh_cell_coord: Array1<i32> = &cell_coord.view() + &shift;
 
                 //skip if cell is out of bounds
-                if neigh_cell_coord.iter().position(|&x| x < 0) != None
-                    || neigh_cell_coord
-                        .iter()
-                        .zip(&nb_grid_points)
-                        .position(|(&neigh, &nb)| neigh >= nb)
-                        != None
+                if neigh_cell_coord
+                    .iter()
+                    .zip(&nb_grid_points)
+                    .any(|(&neigh, &nb_grid_pt)| neigh < 0 || neigh >= nb_grid_pt)
                 {
                     continue;
                 }
-                let cell_index: i32 = Self::coordinate_to_index(
+
+                let current_cell_index: i32 = Self::coordinate_to_index(
                     neigh_cell_coord[0],
                     neigh_cell_coord[1],
                     neigh_cell_coord[2],
                     nb_grid_points.view(),
                 );
 
-                //Find first entry within the cell neighbor list
-                let res = binned_atoms.binary_search_by(|&(x, _)| {
-                    if x == cell_index {
-                        return Ordering::Equal;
-                    } else if x < cell_index {
-                        return Ordering::Less;
-                    } else {
-                        return Ordering::Greater;
-                    }
-                });
+                let find_first_entry_of_cell_result = binned_atoms
+                    .binary_search_by_key(&current_cell_index, |&(binned_atoms_cell_index, _)| {
+                        binned_atoms_cell_index
+                    });
 
-                let cell: (i32, i32) = match res {
-                    Ok(val) => binned_atoms[val],
-                    Err(_) => continue,
+                let mut entry_index: usize = match find_first_entry_of_cell_result {
+                    Ok(val) => binned_atoms[val].1 as usize,
+                    Err(_no_entry_found) => continue,
                 };
 
-                if cell.0 != cell_index {
-                    continue;
-                }
+                while entry_index < atom_to_cell.len()
+                    && atom_to_cell[sorted_atom_indices[entry_index]] == current_cell_index
+                {
+                    let potential_neighbor_index = sorted_atom_indices[entry_index];
 
-                let mut j = cell.1 as usize;
-                while j < atom_to_cell.len() && atom_to_cell[sorted_atom_indices[j]] == cell_index {
-                    let neighi = sorted_atom_indices[j];
-                    if neighi == i {
-                        j += 1;
+                    let atom_is_own_neighbor = potential_neighbor_index == atom_index;
+                    if atom_is_own_neighbor {
+                        entry_index += 1;
                         continue;
                     }
-                    let distance_vector =
-                        &atoms.positions.column(i).view() - &atoms.positions.column(neighi).view();
+
+                    let distance_vector = &atoms.positions.column(atom_index)
+                        - &atoms.positions.column(potential_neighbor_index);
                     let distance_sq = distance_vector.norm_l2().powi(2);
 
                     if distance_sq <= cutoff_sq {
-                        if n >= self.neighbors.len() {
+                        if neighbors_index >= self.neighbors.len() {
                             self.neighbors
                                 .conservative_resize(Dim(2 * self.neighbors.len()));
                         }
-                        self.neighbors[n] = neighi as i32;
-                        n += 1;
+                        self.neighbors[neighbors_index] = potential_neighbor_index as i32;
+                        neighbors_index += 1;
                     }
 
-                    j += 1;
+                    entry_index += 1;
                 }
             }
         }
-        self.seed[nb_atoms] = n as i32;
-        self.neighbors.conservative_resize(Dim(n));
+        self.seed[nb_atoms] = neighbors_index as i32;
+        self.neighbors.conservative_resize(Dim(neighbors_index));
         return (self.seed.clone(), self.neighbors.clone());
     }
 
@@ -267,9 +261,6 @@ pub fn f64_to_u128_order_preserving(value: f64) -> u128 {
 }
 
 fn spread(v: u64) -> U256 {
-    let original_amount_of_ones = v.count_ones();
-    let mut value = U256::from(v);
-
     let mask_low = 0x9249249249249249_u64;
     let mask_middle = 0x4924924924924924_u64;
     let mask_high = 0x2492492492492492_u64;
@@ -278,9 +269,7 @@ fn spread(v: u64) -> U256 {
     let middle_64 = unsafe { _pdep_u64((v >> 22) as u64, mask_middle) };
     let high_64 = unsafe { _pdep_u64((v >> 43) as u64, mask_high) };
 
-    value = (U256::from(high_64) << 128) | (U256::from(middle_64) << 64) | U256::from(low_64);
-
-    return value;
+    return (U256::from(high_64) << 128) | (U256::from(middle_64) << 64) | U256::from(low_64);
 }
 
 pub fn morton_encode_cell(cell_index: u64) -> U256 {

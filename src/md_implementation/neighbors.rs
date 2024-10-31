@@ -26,7 +26,6 @@ impl NeighborList {
 
         // Origin stores the bottom left corner of the enclosing rectangles and
         // lengths the three Cartesian lengths.
-
         let mut origin = Array1::<f64>::from_elem(3, 3.0);
         let mut lengths = Array1::<f64>::from_elem(3, 3.0);
 

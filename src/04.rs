@@ -1,7 +1,5 @@
 use rsmd::md_implementation::{self, xyz};
 
-// use morton_encoding;
-
 use mimalloc::MiMalloc;
 #[global_allocator]
 //static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -26,8 +24,8 @@ fn main() {
     //delete old trajectory if it exists
     _ = std::fs::remove_file(OUTPUT_FILE);
 
-    let ekin: f64 = atoms.kinetic_energy();
-    let epot: f64 = atoms.lj_direct_summation(None, None);
+    let _ekin: f64 = atoms.kinetic_energy();
+    let _epot: f64 = atoms.lj_direct_summation(None, None);
 
     for i in 0..NB_ITERATIONS {
         atoms.verlet_step1(TIMESTEP.into());

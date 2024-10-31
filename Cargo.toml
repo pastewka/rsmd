@@ -38,6 +38,10 @@ dev = ["clippy"]
 name = "04"
 path = "src/04.rs"
 
+[[bin]]
+name = "neighbors_z_rust_executable__inputfile_lj_cube_1000_timestep_0_0001_nbiterations_50k_cutoff_1_5"
+path = "src/neighbors_z_rust_executable.rs"
+
 [[bench]]
 name = "lj_direct_summation_benchmark"
 harness = false
@@ -48,6 +52,10 @@ harness = false
 
 [[bench]]
 name = "neighbors_vs_neighbors_z_benchmark"
+harness = false
+
+[[bench]]
+name = "neighbors_cpp_vs_neighbors_z_rust_benchmark"
 harness = false
 
 #[[bench]]

@@ -7,37 +7,24 @@ use mimalloc::MiMalloc;
 //static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
-//Benchmark using the milestone
 fn neighbors_vs_neighbors_z_benchmark(c: &mut Criterion) {
     const TIMESTEP: f64 = 0.0001;
     const NB_ITERATIONS: u32 = 10_000;
-    const CUTOFF_RADIUS:f64 = 1.5;
+    const CUTOFF_RADIUS: f64 = 1.5;
+    const INPUT_PATH: &str = "input_files/lj_cube_1000.xyz";
 
-    let folder = "input_files";
-    let json_file_path = folder.to_owned() + "/benchmark_lj_direct_summation.json";
-    let content = fs::read_to_string(&json_file_path).expect("JSON file \"benchmark_lj_direct_summation.json\" could not be loaded to benchmark with the specified input files.");
-    let json: serde_json::Value =
-        serde_json::from_str(&content).expect("JSON was not well-formatted");
-
-    let input_files = json.as_array().expect(
-        &("The JSON file \"".to_owned()
-            + &json_file_path
-            + "\" doesn't contain a valid JSON array with the filenames of the input files."),
-    );
-
-    let path = folder.to_owned() + &"/".to_owned() + input_files[5].as_str().unwrap();
-    if !fs::metadata(&path).is_ok() {
-        panic!("input file \"{}\" doesn't exist!", path);
+    if !fs::metadata(INPUT_PATH).is_ok() {
+        panic!("input file \"{}\" doesn't exist!", INPUT_PATH);
     }
-    println!("input_file path {}", &path.to_string());
+    println!("input_file path {}", INPUT_PATH.to_string());
 
     let mut group = c.benchmark_group("neighbors_vs_neighbors_z");
 
     group.sample_size(20);
-    let iterations_string = &("neighbors_".to_owned()+&NB_ITERATIONS.to_string()+"_iters");
+    let iterations_string = &("neighbors_".to_owned() + &NB_ITERATIONS.to_string() + "_iters");
 
-    group.bench_function(BenchmarkId::new(iterations_string, &path), |b| {
-        let mut atoms = md_implementation::xyz::read_xyz(path.to_string())
+    group.bench_function(BenchmarkId::new(iterations_string, INPUT_PATH), |b| {
+        let mut atoms = md_implementation::xyz::read_xyz(INPUT_PATH.to_string())
             .expect("Failed to load atoms configuration.");
         let mut neighbor_list: NeighborList = NeighborList::new();
         b.iter(|| {
@@ -49,10 +36,10 @@ fn neighbors_vs_neighbors_z_benchmark(c: &mut Criterion) {
         });
     });
 
-    let iterations_string = &("neighbors_z_".to_owned()+&NB_ITERATIONS.to_string()+"_iters");
+    let iterations_string = &("neighbors_z_".to_owned() + &NB_ITERATIONS.to_string() + "_iters");
 
-    group.bench_function(BenchmarkId::new(iterations_string, &path), |b| {
-        let mut atoms = md_implementation::xyz::read_xyz(path.to_string())
+    group.bench_function(BenchmarkId::new(iterations_string, INPUT_PATH), |b| {
+        let mut atoms = md_implementation::xyz::read_xyz(INPUT_PATH.to_string())
             .expect("Failed to load atoms configuration.");
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
         b.iter(|| {

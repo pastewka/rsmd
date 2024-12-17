@@ -1,18 +1,13 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::{s, Array2};
+use ndarray::s;
 
 impl Atoms {
     pub fn kinetic_energy(&self) -> f64 {
-        let arr = Array2::from_shape_vec((3, 2), (1..=6).collect()).unwrap();
-        //        println!("arr[1,:]: {:?}", arr.slice(s![1, ..]));
-        //        println!("velo[0,:]: {:?}", &self.velocities.slice(s![0, ..]));
-
         let m_v_squared_sum = (&self.velocities.slice(s![0, ..])
             * &self.velocities.slice(s![0, ..])
             + &self.velocities.slice(s![1, ..]) * &self.velocities.slice(s![1, ..])
             + &self.velocities.slice(s![2, ..]) * &self.velocities.slice(s![2, ..]))
             .sum();
-        //        println!("m_v_squared: {:?}", m_v_squared_sum);
         return 0.5 * m_v_squared_sum;
     }
 }

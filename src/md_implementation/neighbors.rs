@@ -1,6 +1,6 @@
 use crate::md_implementation::atoms::Atoms;
 use itertools::iproduct;
-use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
+use ndarray::{Array1, Array2, Axis, Dim, Zip};
 use ndarray_linalg::norm::Norm;
 
 use super::atoms::ArrayExt;
@@ -54,14 +54,13 @@ impl NeighborList {
                 - *origin_element;
         }
 
-        let l_by_cutoffs: Array1<i32> = (&lengths / cutoff)
-            .iter()
-            .map(|&l_by_cutoff| l_by_cutoff.ceil() as i32)
-            .collect();
+        let l_by_cutoffs: Array1<i32> = lengths.mapv(|l| (l / cutoff).ceil() as i32);
 
-        for (l_by_cutoff, nb_grid_point) in l_by_cutoffs.iter().zip(nb_grid_points.iter_mut()) {
-            *nb_grid_point = std::cmp::max(*l_by_cutoff, 1);
-        }
+        Zip::from(&mut nb_grid_points).and(&l_by_cutoffs).for_each(
+            |nb_grid_point, &l_by_cutoff| {
+                *nb_grid_point = l_by_cutoff.max(1);
+            },
+        );
 
         for (index, &nb_grid_point) in nb_grid_points.iter().enumerate() {
             let padding_length = nb_grid_point as f64 * cutoff - lengths[index];
@@ -81,13 +80,12 @@ impl NeighborList {
 
         let atom_to_cell: Array1<i32> = r
             .axis_iter(Axis(1))
-            .map(|r_col| {
-                Self::coordinate_to_index(r_col[0], r_col[1], r_col[2], nb_grid_points.view())
-            })
+            .map(|r_col| Self::coordinate_to_index(r_col[0], r_col[1], r_col[2], &nb_grid_points))
             .collect();
 
-        let mut sorted_atom_indices =
-            Array1::from_vec((0..atom_to_cell.len()).collect()).into_raw_vec();
+        let nb_atoms = atoms.positions.shape()[1];
+
+        let mut sorted_atom_indices = Array1::from_vec((0..nb_atoms).collect()).into_raw_vec();
 
         //sort indices according to cell membership
         sorted_atom_indices.sort_by_key(|&i| atom_to_cell[i]);
@@ -95,8 +93,6 @@ impl NeighborList {
         let mut previous_cell_index: i32 = atom_to_cell[sorted_atom_indices[0]];
         let mut entry_index: i32 = 0;
         let mut binned_atoms: Vec<(i32, i32)> = vec![(previous_cell_index, entry_index)];
-
-        let nb_atoms = atoms.positions.shape()[1];
 
         for i in 1..sorted_atom_indices.len() {
             let current_cell_index = atom_to_cell[sorted_atom_indices[i]];
@@ -145,7 +141,7 @@ impl NeighborList {
                     neigh_cell_coord[0],
                     neigh_cell_coord[1],
                     neigh_cell_coord[2],
-                    nb_grid_points.view(),
+                    &nb_grid_points,
                 );
 
                 let find_first_entry_of_cell_result = binned_atoms
@@ -200,7 +196,7 @@ impl NeighborList {
         return self.seed[i + 1] - self.seed[i];
     }
 
-    fn coordinate_to_index(x: i32, y: i32, z: i32, nb_grid_points: ArrayView1<i32>) -> i32 {
+    fn coordinate_to_index(x: i32, y: i32, z: i32, nb_grid_points: &Array1<i32>) -> i32 {
         return x + nb_grid_points[0] * (y + nb_grid_points[1] * z);
     }
 }

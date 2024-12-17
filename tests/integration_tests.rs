@@ -1,6 +1,4 @@
-use googletest::{matchers::near, verify_that};
 use ndarray::{array, Array2, Array3, Axis};
-use rsmd::md_implementation::{self, xyz};
 
 use mimalloc::MiMalloc;
 #[global_allocator]
@@ -38,7 +36,10 @@ fn arrays_almost_equal(should: &Array2<f64>, is: &Array2<f64>, tolerance: f64) -
 }
 
 #[test]
+
 fn test_milestone04_compared_to_yamd() {
+    use rsmd::md_implementation::{self, xyz};
+
     let mut atoms =
         md_implementation::xyz::read_xyz_with_velocities(INPUT_FOLDER.to_owned() + INPUT_FILE)
             .unwrap();
@@ -98,36 +99,36 @@ fn test_milestone04_compared_to_yamd() {
     ];
     const PRECISION: f64 = 0.0001;
 
-    println!("v: {:?}", &atoms.velocities);
-    println!("p: {:?}", &atoms.positions);
+    // println!("v: {:?}", &atoms.velocities);
+    // println!("p: {:?}", &atoms.positions);
 
     assert!(atoms.forces.iter().all(|&f| f == 0.0));
-    println!(
-        "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
-        "step", "time", "ekin", "epot", "ekin+epot", "temperature"
-    );
-    println!(
-        "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
-        "----", "----", "----", "----", "---------", "-----------"
-    );
+    // println!(
+    // "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
+    // "step", "time", "ekin", "epot", "ekin+epot", "temperature"
+    // );
+    // println!(
+    // "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
+    // "----", "----", "----", "----", "---------", "-----------"
+    // );
 
-    let ekin: f64 = atoms.kinetic_energy();
-    let epot: f64 = atoms.lj_direct_summation(None, None);
+    let _ekin: f64 = atoms.kinetic_energy();
+    let _epot: f64 = atoms.lj_direct_summation(None, None);
 
-    println!(
-        "first target force: {:?}",
-        &target_force_step0_after_1st_sum_after_verl2.index_axis(Axis(0), 0)
-    );
-
-    println!(
-        "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
-        "START",
-        "-",
-        ekin,
-        epot,
-        ekin + epot,
-        ekin / (1.5f64 * atoms.positions.shape()[1] as f64)
-    );
+    // println!(
+    // "first target force: {:?}",
+    // &target_force_step0_after_1st_sum_after_verl2.index_axis(Axis(0), 0)
+    // );
+    //
+    // println!(
+    // "{:>20}{:>20}{:>20}{:>20}{:>20}{:>20}",
+    // "START",
+    // "-",
+    // ekin,
+    // epot,
+    // ekin + epot,
+    // ekin / (1.5f64 * atoms.positions.shape()[1] as f64)
+    // );
 
     for i in 0..NB_ITERATIONS {
         if i == 0 {
@@ -241,4 +242,28 @@ fn test_milestone04_compared_to_yamd() {
     }
 
     _ = std::fs::remove_file(OUTPUT_FILE);
+}
+
+#[test]
+fn test_neighbor_list_z_compared_to_old_neighbor_list() {
+    use itertools::assert_equal;
+    use ndarray::Array1;
+    use rsmd::md_implementation::{atoms, neighbors};
+
+    let mut atoms = atoms::Atoms::new(3);
+    let new_positions = vec![0.0, 0.0, 0.0, 7.0, 6.0, 0.0, 0.0, 0.0, 0.0];
+
+    let new_positions_arr = Array2::from_shape_vec((3, 3), new_positions)
+        .expect("Failed to create new positions array");
+    atoms.positions.assign(&new_positions_arr);
+
+    let mut neighbor_list: neighbors::NeighborList = neighbors::NeighborList::new();
+    let (seed, neighbors) = neighbor_list.update(&mut atoms, 5.0);
+
+    assert_eq!(neighbor_list.nb_total_neighbors(), 2);
+    assert_eq!(neighbor_list.nb_neighbors_of_atom(0), 1);
+    assert_eq!(neighbor_list.nb_neighbors_of_atom(1), 1);
+    assert_eq!(neighbor_list.nb_neighbors_of_atom(2), 0);
+    assert_equal(seed.clone(), Array1::<i32>::from_vec(vec![0, 1, 2, 2]));
+    assert_equal(neighbors.clone(), Array1::<i32>::from_vec(vec![1, 0]));
 }

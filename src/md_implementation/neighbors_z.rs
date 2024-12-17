@@ -3,7 +3,7 @@ use bigint::U256;
 use core::arch::x86_64::_pdep_u64;
 use itertools::iproduct;
 use ndarray::s;
-use ndarray::{Array1, Array2, ArrayView1, Axis, Dim};
+use ndarray::{Array1, Array2, Axis, Dim, Zip};
 use ndarray_linalg::norm::Norm;
 
 use super::atoms::ArrayExt;
@@ -65,14 +65,13 @@ impl NeighborListZ {
                 - *origin_element;
         }
 
-        let l_by_cutoffs: Array1<i32> = (&lengths / cutoff)
-            .iter()
-            .map(|&l_by_cutoff| l_by_cutoff.ceil() as i32)
-            .collect();
+        let l_by_cutoffs: Array1<i32> = lengths.mapv(|l| (l / cutoff).ceil() as i32);
 
-        for (l_by_cutoff, nb_grid_point) in l_by_cutoffs.iter().zip(nb_grid_points.iter_mut()) {
-            *nb_grid_point = std::cmp::max(*l_by_cutoff, 1);
-        }
+        Zip::from(&mut nb_grid_points).and(&l_by_cutoffs).for_each(
+            |nb_grid_point, &l_by_cutoff| {
+                *nb_grid_point = l_by_cutoff.max(1);
+            },
+        );
 
         for (index, &nb_grid_point) in nb_grid_points.iter().enumerate() {
             let padding_length = nb_grid_point as f64 * cutoff - lengths[index];
@@ -92,9 +91,7 @@ impl NeighborListZ {
 
         let atom_to_cell: Array1<i32> = r
             .axis_iter(Axis(1))
-            .map(|r_col| {
-                Self::coordinate_to_index(r_col[0], r_col[1], r_col[2], nb_grid_points.view())
-            })
+            .map(|r_col| Self::coordinate_to_index(r_col[0], r_col[1], r_col[2], &nb_grid_points))
             .collect();
 
         //create handle that stores the key-value pairs: (key=morton-code(cell), value=atom_index)
@@ -120,7 +117,6 @@ impl NeighborListZ {
                 positions
                     .slice_mut(s![.., new_index])
                     .assign(&atoms.positions.slice(s![.., *original_index]));
-                handles[new_index].1 = new_index;
             }
             atoms.positions.assign(&positions);
         }
@@ -135,9 +131,7 @@ impl NeighborListZ {
         let mut entry_index: i32 = 0;
         let mut binned_atoms: Vec<(i32, i32)> = vec![(previous_cell_index, entry_index)];
 
-        let nb_atoms = atoms.positions.shape()[1];
-
-        for i in 1..sorted_atom_indices.len() {
+        for i in 1..nb_atoms {
             let current_cell_index = atom_to_cell[sorted_atom_indices[i]];
 
             if current_cell_index != previous_cell_index {
@@ -184,7 +178,7 @@ impl NeighborListZ {
                     neigh_cell_coord[0],
                     neigh_cell_coord[1],
                     neigh_cell_coord[2],
-                    nb_grid_points.view(),
+                    &nb_grid_points,
                 );
 
                 let find_first_entry_of_cell_result = binned_atoms
@@ -239,7 +233,7 @@ impl NeighborListZ {
         return self.seed[i + 1] - self.seed[i];
     }
 
-    fn coordinate_to_index(x: i32, y: i32, z: i32, nb_grid_points: ArrayView1<i32>) -> i32 {
+    fn coordinate_to_index(x: i32, y: i32, z: i32, nb_grid_points: &Array1<i32>) -> i32 {
         return x + nb_grid_points[0] * (y + nb_grid_points[1] * z);
     }
 
@@ -342,7 +336,7 @@ mod tests {
         atoms.positions.assign(&new_positions_arr);
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(&mut atoms, 1.5, true);
+        let (_seed, _neighbors) = neighbor_list.update(&mut atoms, 1.5, true);
 
         assert!((atoms.positions != original_positions));
         assert_eq!(neighbor_list.nb_total_neighbors(), 10);
@@ -413,7 +407,7 @@ mod tests {
         let original_positions = atoms.positions.clone();
 
         let mut neighbor_list: NeighborListZ = NeighborListZ::new();
-        let (seed, neighbors) = neighbor_list.update(&mut atoms, 0.5, false);
+        let (_seed, neighbors) = neighbor_list.update(&mut atoms, 0.5, false);
         assert_eq!(atoms.positions, original_positions);
 
         println!("neighbors: {:?}", neighbors);

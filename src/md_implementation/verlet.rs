@@ -1,5 +1,5 @@
 use crate::md_implementation::atoms::Atoms;
-use ndarray::{Axis, Zip};
+use ndarray::Zip;
 
 impl Atoms {
     pub fn verlet_step1(&mut self, timestep: f64) {
@@ -8,9 +8,8 @@ impl Atoms {
         Zip::from(&mut self.positions)
             .and(&self.velocities)
             .for_each(|position, &velocity| {
-                *position += velocity * 0.0001;
+                *position += velocity * timestep;
             });
-        //println!("p_upd: {:?}", self.positions);
     }
 
     pub fn verlet_step2(&mut self, timestep: f64) {
@@ -18,23 +17,9 @@ impl Atoms {
     }
 
     fn verlet_velo_update(&mut self, timestep: f64) {
-        //println!("forces: {}", &self.forces);
-        let mut velo_update = 0.5 * &timestep * &self.forces;
+        let velo_update = 0.5 * &timestep * &self.forces / &self.masses;
 
-        //println!("Masses transp.: {:?}", &self.masses);
-
-        for mut row in velo_update.axis_iter_mut(Axis(0)) {
-            //println!("row {:?}", &row);
-            row /= &self.masses;
-        }
-
-        //Zip::from(velo_update.columns().and(&masses_broadcast.columns())/ &masses_broadcast;
-        //println!("velo_upd / masses.T: {:?}", &velo_update);
-        for i in 0..self.positions.shape()[0] {
-            for j in 0..self.positions.shape()[1] {
-                self.velocities[[i, j]] += velo_update[[i, j]];
-            }
-        }
+        self.velocities += &velo_update;
     }
 }
 

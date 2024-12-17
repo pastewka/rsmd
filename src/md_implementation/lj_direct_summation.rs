@@ -14,7 +14,7 @@ impl Atoms {
             let mut index_of_j = index_of_i + 1;
 
             while let Some(j) = iter_cols_j.next() {
-                let distance_vector = &i.view() - &j.view();
+                let distance_vector = &i - &j;
                 let distance: f64 = distance_vector.norm_l2();
 
                 let (pair_energy, pair_force) = lj_pair(distance, epsilon, sigma);
@@ -52,8 +52,7 @@ mod tests {
     use crate::md_implementation::atoms::Atoms;
     use googletest::{matchers::near, verify_that};
     use ndarray::Array;
-    use ndarray_rand::rand::SeedableRng;
-    use ndarray_rand::{rand_distr::Uniform, RandomExt};
+    use ndarray_rand::{rand::SeedableRng, rand_distr::Uniform, RandomExt};
     use rand_isaac::isaac64::Isaac64Rng;
 
     #[test]
@@ -64,7 +63,7 @@ mod tests {
         const DELTA: f64 = 0.0001;
         const SEED: u64 = 42;
         let mut rng = Isaac64Rng::seed_from_u64(SEED);
-        let mut atoms = Atoms::new(usize::try_from(NB_ATOMS).unwrap());
+        let mut atoms = Atoms::new(NB_ATOMS.into());
         assert_eq!(NB_ATOMS, atoms.positions.shape()[1]);
         assert_eq!(3, atoms.positions.shape()[0]);
 
